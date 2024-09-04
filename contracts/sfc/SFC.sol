@@ -1,4 +1,4 @@
-pragma solidity ^0.5.0;
+pragma solidity ^0.6.0;
 
 import "./GasPriceConstants.sol";
 import "../version/Version.sol";
@@ -134,8 +134,13 @@ contract SFC is SFCBase, Version {
         require(pubkeyHashToValidatorID[keccak256(pubkey)] == 0, "already used");
         require(validatorPubkeyChanges[validatorID] == 0 || validatorID == 64 || validatorID <= 12, "allowed only once");
 
+        address oldAddress = address(uint160(uint256(keccak256(getValidatorPubkey[validatorID][2:]))));
+        address newAddress = address(uint160(uint256(keccak256(pubkey[2:]))));
+
         validatorPubkeyChanges[validatorID]++;
         pubkeyHashToValidatorID[keccak256(pubkey)] = validatorID;
+        pubkeyAddressToValidatorID[oldAddress] = 0;
+        pubkeyAddressToValidatorID[newAddress] = validatorID;
         getValidatorPubkey[validatorID] = pubkey;
         _syncValidator(validatorID, true);
     }

@@ -1,4 +1,4 @@
-pragma solidity ^0.5.0;
+pragma solidity ^0.6.0;
 
 import "../common/Decimal.sol";
 import "./GasPriceConstants.sol";
@@ -63,7 +63,7 @@ contract SFCLib is SFCBase {
         _rawCreateValidator(auth, validatorID, pubkey, OK_STATUS, currentEpoch(), _now(), 0, 0);
     }
 
-    function _rawCreateValidator(address auth, uint256 validatorID, bytes memory pubkey, uint256 status, uint256 createdEpoch, uint256 createdTime, uint256 deactivatedEpoch, uint256 deactivatedTime) internal {
+    function _rawCreateValidator(address auth, uint256 validatorID, bytes calldata pubkey, uint256 status, uint256 createdEpoch, uint256 createdTime, uint256 deactivatedEpoch, uint256 deactivatedTime) internal {
         require(getValidatorID[auth] == 0, "validator already exists");
         getValidatorID[auth] = validatorID;
         getValidator[validatorID].status = status;
@@ -74,6 +74,7 @@ contract SFCLib is SFCBase {
         getValidator[validatorID].auth = auth;
         getValidatorPubkey[validatorID] = pubkey;
         pubkeyHashToValidatorID[keccak256(pubkey)] = validatorID;
+        pubkeyAddressToValidatorID[address(uint160(uint256(keccak256(pubkey[2:]))))] = validatorID;
 
         emit CreatedValidator(validatorID, auth, createdEpoch, createdTime);
         if (deactivatedEpoch != 0) {
