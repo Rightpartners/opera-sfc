@@ -1,4 +1,5 @@
-pragma solidity ^0.5.0;
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.19;
 
 import "../common/Decimal.sol";
 import "./GasPriceConstants.sol";
@@ -89,7 +90,7 @@ contract SFCLib is SFCBase {
     }
 
     function _checkDelegatedStakeLimit(uint256 validatorID) internal view returns (bool) {
-        return getValidator[validatorID].receivedStake <= getSelfStake(validatorID).mul(c.maxDelegatedRatio()).div(Decimal.unit());
+        return getValidator[validatorID].receivedStake <= getSelfStake(validatorID) * c.maxDelegatedRatio() / Decimal.unit();
     }
 
     function delegate(uint256 toValidatorID) external payable {
@@ -108,12 +109,12 @@ contract SFCLib is SFCBase {
 
         _stashRewards(delegator, toValidatorID);
 
-        getStake[delegator][toValidatorID] = getStake[delegator][toValidatorID].add(amount);
+        getStake[delegator][toValidatorID] = getStake[delegator][toValidatorID] + amount;
         uint256 origStake = getValidator[toValidatorID].receivedStake;
-        getValidator[toValidatorID].receivedStake = origStake.add(amount);
-        totalStake = totalStake.add(amount);
+        getValidator[toValidatorID].receivedStake = origStake + amount;
+        totalStake = totalStake + amount;
         if (getValidator[toValidatorID].status == OK_STATUS) {
-            totalActiveStake = totalActiveStake.add(amount);
+            totalActiveStake = totalActiveStake + amount;
         }
 
         _syncValidator(toValidatorID, origStake == 0);
@@ -124,16 +125,16 @@ contract SFCLib is SFCBase {
     }
 
     function recountVotes(address delegator, address validatorAuth, bool strict, uint256 gas) external {
-        (bool success,) = voteBookAddress.call.gas(gas)(abi.encodeWithSignature("recountVotes(address,address)", delegator, validatorAuth));
+        (bool success,) = voteBookAddress.call{gas: gas}(abi.encodeWithSignature("recountVotes(address,address)", delegator, validatorAuth));
         require(success || !strict, "gov votes recounting failed");
     }
 
     function _rawUndelegate(address delegator, uint256 toValidatorID, uint256 amount, bool strict, bool forceful, bool checkDelegatedStake) internal {
         getStake[delegator][toValidatorID] -= amount;
-        getValidator[toValidatorID].receivedStake = getValidator[toValidatorID].receivedStake.sub(amount);
-        totalStake = totalStake.sub(amount);
+        getValidator[toValidatorID].receivedStake = getValidator[toValidatorID].receivedStake - amount;
+        totalStake = totalStake - amount;
         if (getValidator[toValidatorID].status == OK_STATUS) {
-            totalActiveStake = totalActiveStake.sub(amount);
+            totalActiveStake = totalActiveStake - amount;
         }
 
         uint256 selfStakeAfterwards = getSelfStake(toValidatorID);
@@ -189,7 +190,7 @@ contract SFCLib is SFCBase {
         uint256 unlockedStake = getUnlockedStake(delegator, toValidatorID);
         if (amount > unlockedStake) {
             LockedDelegation storage ld = getLockupInfo[delegator][toValidatorID];
-            ld.lockedStake = ld.lockedStake.sub(amount - unlockedStake);
+            ld.lockedStake = ld.lockedStake - amount - unlockedStake;
             emit UnlockedStake(delegator, toValidatorID, amount - unlockedStake, 0);
         }
 
@@ -200,7 +201,7 @@ contract SFCLib is SFCBase {
         emit Undelegated(delegator, toValidatorID, 0xffffffffff, amount);
 
         // It's important that we transfer after erasing (protection against Re-Entrancy)
-        (bool sent,) = msg.sender.call.value(amount)("");
+        (bool sent,) = msg.sender.call{value: amount}("");
         require(sent, "Failed to send FTM");
 
         emit Withdrawn(delegator, toValidatorID, 0xffffffffff, amount);
@@ -215,14 +216,14 @@ contract SFCLib is SFCBase {
             return 0;
         }
         // round penalty upwards (ceiling) to prevent dust amount attacks
-        penalty = amount.mul(Decimal.unit() - refundRatio).div(Decimal.unit()).add(1);
+        penalty = amount * (Decimal.unit() - refundRatio) / Decimal.unit() + 1;
         if (penalty > amount) {
             return amount;
         }
         return penalty;
     }
 
-    function _withdraw(address payable delegator, uint256 toValidatorID, uint256 wrID, address payable receiver) private {
+    function _withdraw(address delegator, uint256 toValidatorID, uint256 wrID, address payable receiver) private {
         WithdrawalRequest memory request = getWithdrawalRequest[delegator][toValidatorID][wrID];
         require(request.epoch != 0, "request doesn't exist");
         require(_checkAllowedToWithdraw(delegator, toValidatorID), "outstanding sFTM balance");
@@ -245,7 +246,7 @@ contract SFCLib is SFCBase {
         totalSlashedStake += penalty;
         require(amount > penalty, "stake is fully slashed");
         // It's important that we transfer after erasing (protection against Re-Entrancy)
-        (bool sent,) = receiver.call.value(amount.sub(penalty))("");
+        (bool sent,) = receiver.call{value: amount - penalty}("");
         require(sent, "Failed to send FTM");
         _burnFTM(penalty);
 
@@ -315,7 +316,7 @@ contract SFCLib is SFCBase {
 
         LockedDelegation storage ld = getLockupInfo[delegator][toValidatorID];
         uint256 wholeStake = getStake[delegator][toValidatorID];
-        uint256 unlockedStake = wholeStake.sub(ld.lockedStake);
+        uint256 unlockedStake = wholeStake - ld.lockedStake;
         uint256 fullReward;
 
         // count reward for locked stake during lockup epochs
@@ -337,7 +338,7 @@ contract SFCLib is SFCBase {
         }
         uint256 stashedRate = getEpochSnapshot[fromEpoch].accumulatedRewardPerToken[toValidatorID];
         uint256 currentRate = getEpochSnapshot[toEpoch].accumulatedRewardPerToken[toValidatorID];
-        return currentRate.sub(stashedRate).mul(stakeAmount).div(Decimal.unit());
+        return (currentRate - stashedRate) * stakeAmount / Decimal.unit();
     }
 
     function _pendingRewards(address delegator, uint256 toValidatorID) internal view returns (Rewards memory) {
@@ -347,7 +348,7 @@ contract SFCLib is SFCBase {
 
     function pendingRewards(address delegator, uint256 toValidatorID) public view returns (uint256) {
         Rewards memory reward = _pendingRewards(delegator, toValidatorID);
-        return reward.unlockedReward.add(reward.lockupBaseReward).add(reward.lockupExtraReward);
+        return reward.unlockedReward + reward.lockupBaseReward + reward.lockupExtraReward;
     }
 
     function stashRewards(address delegator, uint256 toValidatorID) external {
@@ -371,7 +372,7 @@ contract SFCLib is SFCBase {
         require(_checkAllowedToWithdraw(delegator, toValidatorID), "outstanding sFTM balance");
         _stashRewards(delegator, toValidatorID);
         rewards = _rewardsStash[delegator][toValidatorID];
-        uint256 totalReward = rewards.unlockedReward.add(rewards.lockupBaseReward).add(rewards.lockupExtraReward);
+        uint256 totalReward = rewards.unlockedReward + rewards.lockupBaseReward + rewards.lockupExtraReward;
         require(totalReward != 0, "zero rewards");
         delete _rewardsStash[delegator][toValidatorID];
         // It's important that we mint after erasing (protection against Re-Entrancy)
@@ -380,10 +381,10 @@ contract SFCLib is SFCBase {
     }
 
     function claimRewards(uint256 toValidatorID) public {
-        address payable delegator = msg.sender;
+        address delegator = msg.sender;
         Rewards memory rewards = _claimRewards(delegator, toValidatorID);
         // It's important that we transfer after erasing (protection against Re-Entrancy)
-        (bool sent,) = _receiverOf(delegator).call.value(rewards.lockupExtraReward.add(rewards.lockupBaseReward).add(rewards.unlockedReward))("");
+        (bool sent,) = _receiverOf(delegator).call{value: rewards.lockupExtraReward + rewards.lockupBaseReward + rewards.unlockedReward}("");
         require(sent, "Failed to send FTM");
 
         emit ClaimedRewards(delegator, toValidatorID, rewards.lockupExtraReward, rewards.lockupBaseReward, rewards.unlockedReward);
@@ -393,8 +394,8 @@ contract SFCLib is SFCBase {
         address delegator = msg.sender;
         Rewards memory rewards = _claimRewards(delegator, toValidatorID);
 
-        uint256 lockupReward = rewards.lockupExtraReward.add(rewards.lockupBaseReward);
-        _delegate(delegator, toValidatorID, lockupReward.add(rewards.unlockedReward));
+        uint256 lockupReward = rewards.lockupExtraReward + rewards.lockupBaseReward;
+        _delegate(delegator, toValidatorID, lockupReward + rewards.unlockedReward);
         getLockupInfo[delegator][toValidatorID].lockedStake += lockupReward;
         emit RestakedRewards(delegator, toValidatorID, rewards.lockupExtraReward, rewards.lockupBaseReward, rewards.unlockedReward);
     }
@@ -406,7 +407,7 @@ contract SFCLib is SFCBase {
 
     function _burnFTM(uint256 amount) internal {
         if (amount != 0) {
-            address(0).transfer(amount);
+            payable(address(0)).transfer(amount);
             emit BurntFTM(amount);
         }
     }
@@ -430,7 +431,7 @@ contract SFCLib is SFCBase {
         if (!isLockedUp(delegator, toValidatorID)) {
             return getStake[delegator][toValidatorID];
         }
-        return getStake[delegator][toValidatorID].sub(getLockupInfo[delegator][toValidatorID].lockedStake);
+        return getStake[delegator][toValidatorID] - getLockupInfo[delegator][toValidatorID].lockedStake;
     }
 
     function _lockStake(address delegator, uint256 toValidatorID, uint256 lockupDuration, uint256 amount, bool relock) internal {
@@ -439,7 +440,7 @@ contract SFCLib is SFCBase {
         require(getValidator[toValidatorID].status == OK_STATUS, "validator isn't active");
 
         require(lockupDuration >= c.minLockupDuration() && lockupDuration <= c.maxLockupDuration(), "incorrect duration");
-        uint256 endTime = _now().add(lockupDuration);
+        uint256 endTime = _now() + lockupDuration;
         address validatorAddr = getValidator[toValidatorID].auth;
         if (delegator != validatorAddr) {
             require(getLockupInfo[validatorAddr][toValidatorID].endTime + 30 * 24 * 60 * 60 >= endTime, "validator's lockup will end too early");
@@ -464,7 +465,7 @@ contract SFCLib is SFCBase {
         // check lockup duration after _stashRewards, which has erased previous lockup if it has unlocked already
         require(lockupDuration >= ld.duration, "lockup duration cannot decrease");
 
-        ld.lockedStake = ld.lockedStake.add(amount);
+        ld.lockedStake = ld.lockedStake + amount;
         ld.fromEpoch = currentEpoch();
         ld.endTime = endTime;
         ld.duration = lockupDuration;
@@ -487,11 +488,11 @@ contract SFCLib is SFCBase {
 
     function _popNonStashedUnlockPenalty(address delegator, uint256 toValidatorID, uint256 unlockAmount, uint256 totalAmount) internal returns (uint256) {
         Rewards storage r = getStashedLockupRewards[delegator][toValidatorID];
-        uint256 lockupExtraRewardShare = r.lockupExtraReward.mul(unlockAmount).div(totalAmount);
-        uint256 lockupBaseRewardShare = r.lockupBaseReward.mul(unlockAmount).div(totalAmount);
+        uint256 lockupExtraRewardShare = r.lockupExtraReward * unlockAmount / totalAmount;
+        uint256 lockupBaseRewardShare = r.lockupBaseReward * unlockAmount / totalAmount;
         uint256 penalty = lockupExtraRewardShare + lockupBaseRewardShare / 2;
-        r.lockupExtraReward = r.lockupExtraReward.sub(lockupExtraRewardShare);
-        r.lockupBaseReward = r.lockupBaseReward.sub(lockupBaseRewardShare);
+        r.lockupExtraReward = r.lockupExtraReward - lockupExtraRewardShare;
+        r.lockupBaseReward = r.lockupBaseReward - lockupBaseRewardShare;
         return penalty;
     }
 
@@ -500,9 +501,9 @@ contract SFCLib is SFCBase {
         Penalty[] storage penalties = getStashedPenalties[delegator][toValidatorID];
         uint256 total = 0;
         for (uint256 i = 0; i < penalties.length; i++) {
-            uint256 penalty = penalties[i].amount.mul(unlockAmount).div(totalAmount);
-            penalties[i].amount = penalties[i].amount.sub(penalty);
-            total = total.add(penalty);
+            uint256 penalty = penalties[i].amount * unlockAmount / totalAmount;
+            penalties[i].amount = penalties[i].amount - penalty;
+            total = total + penalty;
         }
         return total;
     }
@@ -532,7 +533,7 @@ contract SFCLib is SFCBase {
         ld.lockedStake -= amount;
         if (penalty != 0) {
             _rawUndelegate(delegator, toValidatorID, penalty, true, false, false);
-            treasuryAddress.call.value(penalty)("");
+            treasuryAddress.call{value: penalty}("");
         }
 
         emit UnlockedStake(delegator, toValidatorID, amount, penalty);
@@ -646,14 +647,14 @@ contract SFCLib is SFCBase {
     function _receiverOf(address addr) internal view returns(address payable) {
         address to = _redirectedTo(addr);
         if (to == address(0)) {
-            return address(uint160(addr));
+            return payable(address(uint160(addr)));
         }
-        return address(uint160(to));
+        return payable(address(uint160(to)));
     }
 
     // code below can be erased after 1 year since deployment of multipenalties
 
-    function _getAvgEpochStep(uint256 duration) internal view returns(uint256) {
+    function _getAvgEpochStep(uint256 duration) internal view virtual returns(uint256) {
         // estimate number of epochs such that we would make approximately 15 iterations
         uint256 tryEpochs = currentSealedEpoch / 5;
         if (tryEpochs > 10000) {
@@ -663,7 +664,7 @@ contract SFCLib is SFCBase {
         if (tryEndTime == 0 || tryEpochs == 0) {
             return 0;
         }
-        uint256 secondsPerEpoch = _now().sub(tryEndTime) / tryEpochs;
+        uint256 secondsPerEpoch = (_now() - tryEndTime) / tryEpochs;
         return duration / (secondsPerEpoch * 15 + 1);
     }
 
@@ -671,7 +672,7 @@ contract SFCLib is SFCBase {
         uint256 receivedStakeSum = getValidator[validatorID].receivedStake;
         uint256 samples = 1;
 
-        uint256 until = _now().sub(duration);
+        uint256 until = _now() - duration;
         for (uint256 i = 1; i <= 30; i++) {
             uint256 e = currentSealedEpoch - i * step;
             EpochSnapshot storage s = getEpochSnapshot[e];
@@ -687,8 +688,8 @@ contract SFCLib is SFCBase {
         return receivedStakeSum / samples;
     }
 
-    function _getAvgUptime(uint256 validatorID, uint256 duration, uint256 step) internal view returns(uint256) {
-        uint256 until = _now().sub(duration);
+    function _getAvgUptime(uint256 validatorID, uint256 duration, uint256 step) internal view virtual returns(uint256) {
+        uint256 until = _now() - duration;
         uint256 oldUptimeCounter = 0;
         uint256 newUptimeCounter = 0;
         for (uint256 i = 0; i <= 30; i++) {
@@ -729,21 +730,21 @@ contract SFCLib is SFCBase {
         if (step == 0) {
             return;
         }
-        uint256 RPS = _getAvgUptime(toValidatorID, duration, step).mul(2092846271).div(duration); // corresponds to 6.6% APR
+        uint256 RPS = _getAvgUptime(toValidatorID, duration, step) * 2092846271 / duration; // corresponds to 6.6% APR
         uint256 selfStake = getStake[delegator][toValidatorID];
 
-        uint256 avgFullReward = selfStake.mul(RPS).mul(duration).div(1e18).mul(Decimal.unit().sub(c.validatorCommission())).div(Decimal.unit()); // reward for self-stake
+        uint256 avgFullReward = selfStake * RPS * duration / 1e18 * (Decimal.unit() - c.validatorCommission()) / Decimal.unit(); // reward for self-stake
         if (getValidator[toValidatorID].auth == delegator) { // reward for received portion of stake
-            uint256 receivedStakeAvg = _getAvgReceivedStake(toValidatorID, duration, step).mul(11).div(10);
-            avgFullReward += receivedStakeAvg.mul(RPS).mul(duration).div(1e18).mul(c.validatorCommission()).div(Decimal.unit());
+            uint256 receivedStakeAvg = _getAvgReceivedStake(toValidatorID, duration, step) * 11 / 10;
+            avgFullReward += receivedStakeAvg * RPS * duration / 1e18 * c.validatorCommission() / Decimal.unit();
         }
-        avgFullReward = avgFullReward.mul(lockedStake).div(selfStake);
+        avgFullReward = avgFullReward * lockedStake / selfStake;
         Rewards memory avgReward = _scaleLockupReward(avgFullReward, duration);
         uint256 maxReasonablePenalty = avgReward.lockupBaseReward / 2 + avgReward.lockupExtraReward;
         maxReasonablePenalty = maxReasonablePenalty;
         if (storedPenalty > maxReasonablePenalty) {
-            r.lockupExtraReward = r.lockupExtraReward.mul(maxReasonablePenalty).div(storedPenalty);
-            r.lockupBaseReward = r.lockupBaseReward.mul(maxReasonablePenalty).div(storedPenalty);
+            r.lockupExtraReward = r.lockupExtraReward * maxReasonablePenalty / storedPenalty;
+            r.lockupBaseReward = r.lockupBaseReward * maxReasonablePenalty / storedPenalty;
         }
     }
 }

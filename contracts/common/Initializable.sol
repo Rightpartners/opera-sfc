@@ -1,5 +1,5 @@
-pragma solidity >=0.4.24 <0.7.0;
-
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.19;
 
 /**
  * @title Initializable
@@ -29,7 +29,7 @@ contract Initializable {
    * @dev Modifier to use in the initializer function of a contract.
    */
   modifier initializer() {
-    require(initializing || isConstructor() || !initialized, "Contract instance has already been initialized");
+    require(initializing || !initialized, "Contract instance has already been initialized");
 
     bool isTopLevelCall = !initializing;
     if (isTopLevelCall) {
@@ -42,19 +42,6 @@ contract Initializable {
     if (isTopLevelCall) {
       initializing = false;
     }
-  }
-
-  /// @dev Returns true if and only if the function is running in the constructor
-  function isConstructor() private view returns (bool) {
-    // extcodesize checks the size of the code stored in an address, and
-    // address returns the current address. Since the code is still not
-    // deployed when running a constructor, any checks on its code size will
-    // yield zero, making it an effective way to detect if a contract is
-    // under construction or not.
-    address self = address(this);
-    uint256 cs;
-    assembly { cs := extcodesize(self) }
-    return cs == 0;
   }
 
   // Reserved storage space to allow for layout changes in the future.

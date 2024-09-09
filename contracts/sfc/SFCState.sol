@@ -1,11 +1,12 @@
-pragma solidity ^0.5.0;
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.19;
 
 import "./NodeDriver.sol";
 import "../ownership/Ownable.sol";
 import "./ConstantsManager.sol";
 
+
 contract SFCState is Initializable, Ownable {
-    using SafeMath for uint256;
     /**
      * @dev The staking for validation
      */

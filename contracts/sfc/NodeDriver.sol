@@ -1,6 +1,6 @@
-pragma solidity ^0.5.0;
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.19;
 
-import "../common/SafeMath.sol";
 import "../common/Initializable.sol";
 import "../ownership/Ownable.sol";
 import "./SFCI.sol";
@@ -11,8 +11,6 @@ interface NodeDriverExecutable {
 }
 
 contract NodeDriverAuth is Initializable, Ownable {
-    using SafeMath for uint256;
-
     SFCI internal sfc;
     NodeDriver internal driver;
 
@@ -56,7 +54,7 @@ contract NodeDriverAuth is Initializable, Ownable {
 
     function incBalance(address acc, uint256 diff) external onlySFC {
         require(acc == address(sfc), "recipient is not the SFC contract");
-        driver.setBalance(acc, address(acc).balance.add(diff));
+        driver.setBalance(acc, address(acc).balance + diff);
     }
 
     function upgradeCode(address acc, address from) external onlyOwner {
@@ -140,7 +138,7 @@ contract NodeDriverAuth is Initializable, Ownable {
         bytes memory bstr = new bytes(decimals);
         uint strIdx = decimals - 1;
         while (num != 0) {
-            bstr[strIdx] = byte(uint8(48 + num % 10));
+            bstr[strIdx] = bytes1(uint8(48 + num % 10));
             num /= 10;
             strIdx--;
         }

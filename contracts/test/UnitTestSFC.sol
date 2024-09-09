@@ -1,4 +1,5 @@
-pragma solidity ^0.5.0;
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.19;
 
 import "../sfc/SFC.sol";
 import "../sfc/SFCI.sol";
@@ -35,11 +36,11 @@ contract UnitTestSFCBase {
 }
 
 contract UnitTestSFC is SFC, UnitTestSFCBase {
-    function _now() internal view returns (uint256) {
+    function _now() internal view override returns (uint256) {
         return time;
     }
 
-    function isNode(address addr) internal view returns (bool) {
+    function isNode(address addr) internal view override returns (bool) {
         if (allowedNonNodeCalls) {
             return true;
         }
@@ -52,22 +53,22 @@ contract UnitTestSFCLib is SFCLib, UnitTestSFCBase {
         return _highestLockupEpoch(delegator, validatorID);
     }
 
-    function _now() internal view returns (uint256) {
+    function _now() internal view override returns (uint256) {
         return time;
     }
 
-    function isNode(address addr) internal view returns (bool) {
+    function isNode(address addr) internal view override returns (bool) {
         if (allowedNonNodeCalls) {
             return true;
         }
         return SFCBase.isNode(addr);
     }
 
-    function _getAvgEpochStep(uint256) internal view returns(uint256) {
+    function _getAvgEpochStep(uint256) internal view override returns(uint256) {
         return 1;
     }
 
-    function _getAvgUptime(uint256, uint256 duration, uint256) internal view returns(uint256) {
+    function _getAvgUptime(uint256, uint256 duration, uint256) internal view override returns(uint256) {
         return duration;
     }
 }
@@ -97,7 +98,7 @@ contract UnitTestNetworkInitializer {
         consts.transferOwnership(_owner);
 
         SFCUnitTestI(_sfc).initialize(sealedEpoch, totalSupply, _auth, _lib, address(consts), _owner);
-        selfdestruct(address(0));
+        selfdestruct(payable(address(0)));
     }
 }
 

@@ -1,10 +1,10 @@
-pragma solidity ^0.5.0;
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.19;
 
 import "./SFCState.sol";
 
-contract SFCBase is SFCState {
-    using SafeMath for uint256;
 
+contract SFCBase is SFCState {
     uint256 internal constant OK_STATUS = 0;
     uint256 internal constant WITHDRAWN_BIT = 1;
     uint256 internal constant OFFLINE_BIT = 1 << 3;
@@ -14,7 +14,7 @@ contract SFCBase is SFCState {
     event DeactivatedValidator(uint256 indexed validatorID, uint256 deactivatedEpoch, uint256 deactivatedTime);
     event ChangedValidatorStatus(uint256 indexed validatorID, uint256 status);
 
-    function isNode(address addr) internal view returns (bool) {
+    function isNode(address addr) internal view virtual returns (bool) {
         return addr == address(node);
     }
 
@@ -31,27 +31,31 @@ contract SFCBase is SFCState {
         if (txRewardWeight == 0) {
             return 0;
         }
-        uint256 txReward = epochFee.mul(txRewardWeight).div(totalTxRewardWeight);
+        uint256 txReward = epochFee * txRewardWeight / totalTxRewardWeight;
         // fee reward except burntFeeShare and treasuryFeeShare
-        return txReward.mul(Decimal.unit() - c.burntFeeShare() - c.treasuryFeeShare()).div(Decimal.unit());
+        return txReward * (Decimal.unit() - c.burntFeeShare() - c.treasuryFeeShare()) / Decimal.unit();
     }
 
     function _calcRawValidatorEpochBaseReward(uint256 epochDuration, uint256 _baseRewardPerSecond, uint256 baseRewardWeight, uint256 totalBaseRewardWeight) internal pure returns (uint256) {
         if (baseRewardWeight == 0) {
             return 0;
         }
-        uint256 totalReward = epochDuration.mul(_baseRewardPerSecond);
-        return totalReward.mul(baseRewardWeight).div(totalBaseRewardWeight);
+        uint256 totalReward = epochDuration * _baseRewardPerSecond;
+        return totalReward * baseRewardWeight /totalBaseRewardWeight;
     }
 
     function _mintNativeToken(uint256 amount) internal {
         // balance will be increased after the transaction is processed
         node.incBalance(address(this), amount);
-        totalSupply = totalSupply.add(amount);
+        totalSupply = totalSupply + amount;
     }
 
     function sumRewards(Rewards memory a, Rewards memory b) internal pure returns (Rewards memory) {
-        return Rewards(a.lockupExtraReward.add(b.lockupExtraReward), a.lockupBaseReward.add(b.lockupBaseReward), a.unlockedReward.add(b.unlockedReward));
+        return Rewards(
+            a.lockupExtraReward + b.lockupExtraReward,
+            a.lockupBaseReward + b.lockupBaseReward,
+            a.unlockedReward + b.unlockedReward
+        );
     }
 
     function sumRewards(Rewards memory a, Rewards memory b, Rewards memory c) internal pure returns (Rewards memory) {
@@ -63,12 +67,12 @@ contract SFCBase is SFCState {
         uint256 unlockedRewardRatio = c.unlockedRewardRatio();
         if (lockupDuration != 0) {
             uint256 maxLockupExtraRatio = Decimal.unit() - unlockedRewardRatio;
-            uint256 lockupExtraRatio = maxLockupExtraRatio.mul(lockupDuration).div(c.maxLockupDuration());
-            uint256 totalScaledReward = fullReward.mul(unlockedRewardRatio + lockupExtraRatio).div(Decimal.unit());
-            reward.lockupBaseReward = fullReward.mul(unlockedRewardRatio).div(Decimal.unit());
+            uint256 lockupExtraRatio = maxLockupExtraRatio * lockupDuration / c.maxLockupDuration();
+            uint256 totalScaledReward = fullReward * unlockedRewardRatio + lockupExtraRatio / Decimal.unit();
+            reward.lockupBaseReward = fullReward * unlockedRewardRatio / Decimal.unit();
             reward.lockupExtraReward = totalScaledReward - reward.lockupBaseReward;
         } else {
-            reward.unlockedReward = fullReward.mul(unlockedRewardRatio).div(Decimal.unit());
+            reward.unlockedReward = fullReward * unlockedRewardRatio / Decimal.unit();
         }
         return reward;
     }
@@ -76,7 +80,7 @@ contract SFCBase is SFCState {
     function _recountVotes(address delegator, address validatorAuth, bool strict) internal {
         if (voteBookAddress != address(0)) {
             // Don't allow recountVotes to use up all the gas
-            (bool success,) = voteBookAddress.call.gas(8000000)(abi.encodeWithSignature("recountVotes(address,address)", delegator, validatorAuth));
+            (bool success,) = voteBookAddress.call{gas: 8000000}(abi.encodeWithSignature("recountVotes(address,address)", delegator, validatorAuth));
             // Don't revert if recountVotes failed unless strict mode enabled
             require(success || !strict, "gov votes recounting failed");
         }
@@ -84,7 +88,7 @@ contract SFCBase is SFCState {
 
     function _setValidatorDeactivated(uint256 validatorID, uint256 status) internal {
         if (getValidator[validatorID].status == OK_STATUS && status != OK_STATUS) {
-            totalActiveStake = totalActiveStake.sub(getValidator[validatorID].receivedStake);
+            totalActiveStake = totalActiveStake - getValidator[validatorID].receivedStake;
         }
         // status as a number is proportional to severity
         if (status > getValidator[validatorID].status) {
@@ -116,7 +120,7 @@ contract SFCBase is SFCState {
     }
 
     function _calcValidatorCommission(uint256 rawReward, uint256 commission) internal pure returns (uint256)  {
-        return rawReward.mul(commission).div(Decimal.unit());
+        return rawReward * commission / Decimal.unit();
     }
 
     function getLockedStake(address delegator, uint256 toValidatorID) public view returns (uint256) {
@@ -130,7 +134,7 @@ contract SFCBase is SFCState {
         return getLockupInfo[delegator][toValidatorID].endTime != 0 && getLockupInfo[delegator][toValidatorID].lockedStake != 0 && _now() <= getLockupInfo[delegator][toValidatorID].endTime;
     }
 
-    function _now() internal view returns (uint256) {
+    function _now() internal view virtual returns (uint256) {
         return block.timestamp;
     }
 }

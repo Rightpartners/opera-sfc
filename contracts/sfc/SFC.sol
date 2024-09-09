@@ -1,4 +1,5 @@
-pragma solidity ^0.5.0;
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.19;
 
 import "./GasPriceConstants.sol";
 import "../version/Version.sol";
@@ -13,23 +14,23 @@ contract SFC is SFCBase, Version {
         // Copy msg.data. We take full control of memory in this inline assembly
         // block because it will not return to Solidity code. We overwrite the
         // Solidity scratch pad at memory position 0.
-            calldatacopy(0, 0, calldatasize)
+            calldatacopy(0, 0, calldatasize())
 
         // Call the implementation.
         // out and outsize are 0 because we don't know the size yet.
-            let result := delegatecall(gas, implementation, 0, calldatasize, 0, 0)
+            let result := delegatecall(gas(), implementation, 0, calldatasize(), 0, 0)
 
         // Copy the returned data.
-            returndatacopy(0, 0, returndatasize)
+            returndatacopy(0, 0, returndatasize())
 
             switch result
             // delegatecall returns 0 on error.
-            case 0 {revert(0, returndatasize)}
-            default {return (0, returndatasize)}
+            case 0 {revert(0, returndatasize())}
+            default {return (0, returndatasize())}
         }
     }
 
-    function() payable external {
+    fallback() payable external {
         require(msg.data.length != 0, "transfers not allowed");
         _delegate(libAddress);
     }
@@ -68,7 +69,7 @@ contract SFC is SFCBase, Version {
 
     function rewardsStash(address delegator, uint256 validatorID) public view returns (uint256) {
         Rewards memory stash = _rewardsStash[delegator][validatorID];
-        return stash.lockupBaseReward.add(stash.lockupExtraReward).add(stash.unlockedReward);
+        return stash.lockupBaseReward + stash.lockupExtraReward + stash.unlockedReward;
     }
 
     /*
@@ -204,19 +205,19 @@ contract SFC is SFCBase, Version {
             // originatedTxsFee is roughly proportional to {uptime} * {stake}, so the whole formula is roughly
             // {stake} * {uptime} ^ 2
             ctx.txRewardWeights[i] = originatedTxsFee * uptimes[i] / epochDuration;
-            ctx.totalTxRewardWeight = ctx.totalTxRewardWeight.add(ctx.txRewardWeights[i]);
-            ctx.epochFee = ctx.epochFee.add(originatedTxsFee);
+            ctx.totalTxRewardWeight = ctx.totalTxRewardWeight + ctx.txRewardWeights[i];
+            ctx.epochFee = ctx.epochFee + originatedTxsFee;
         }
 
         for (uint256 i = 0; i < validatorIDs.length; i++) {
             // baseRewardWeight = {stake} * {uptime ^ 2}
             ctx.baseRewardWeights[i] = (((snapshot.receivedStake[validatorIDs[i]] * uptimes[i]) / epochDuration) * uptimes[i]) / epochDuration;
-            ctx.totalBaseRewardWeight = ctx.totalBaseRewardWeight.add(ctx.baseRewardWeights[i]);
+            ctx.totalBaseRewardWeight = ctx.totalBaseRewardWeight + ctx.baseRewardWeights[i];
         }
 
         for (uint256 i = 0; i < validatorIDs.length; i++) {
             uint256 rawReward = _calcRawValidatorEpochBaseReward(epochDuration, c.baseRewardPerSecond(), ctx.baseRewardWeights[i], ctx.totalBaseRewardWeight);
-            rawReward = rawReward.add(_calcRawValidatorEpochTxReward(ctx.epochFee, ctx.txRewardWeights[i], ctx.totalTxRewardWeight));
+            rawReward = rawReward + _calcRawValidatorEpochTxReward(ctx.epochFee, ctx.txRewardWeights[i], ctx.totalTxRewardWeight);
 
             uint256 validatorID = validatorIDs[i];
             address validatorAddr = getValidator[validatorID].auth;
@@ -258,7 +259,7 @@ contract SFC is SFCBase, Version {
         if (treasuryAddress != address(0)) {
             uint256 feeShare = ctx.epochFee * c.treasuryFeeShare() / Decimal.unit();
             _mintNativeToken(feeShare);
-            treasuryAddress.call.value(feeShare).gas(1000000)("");
+            treasuryAddress.call{value: feeShare, gas: 1000000}("");
         }
     }
 
@@ -309,7 +310,7 @@ contract SFC is SFCBase, Version {
             uint256 validatorID = nextValidatorIDs[i];
             uint256 receivedStake = getValidator[validatorID].receivedStake;
             snapshot.receivedStake[validatorID] = receivedStake;
-            snapshot.totalStake = snapshot.totalStake.add(receivedStake);
+            snapshot.totalStake = snapshot.totalStake + receivedStake;
         }
         snapshot.validatorIDs = nextValidatorIDs;
         node.updateMinGasPrice(minGasPrice);
