@@ -8,7 +8,7 @@ contract StubEvmWriter is EVMWriter {
 
     function copyCode(address acc, address from) external {}
 
-    function swapCode(address acc, address with) external {}
+    function swapCode(address acc, address where) external {}
 
     function setStorage(address acc, bytes32 key, bytes32 value) external {}
 

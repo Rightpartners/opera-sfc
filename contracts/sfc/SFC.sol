@@ -30,7 +30,7 @@ contract SFC is SFCBase, Version {
         }
     }
 
-    fallback() payable external {
+    fallback() external payable {
         require(msg.data.length != 0, "transfers not allowed");
         _delegate(libAddress);
     }

@@ -210,8 +210,8 @@ contract NodeDriver is Initializable {
         evmWriter.copyCode(acc, from);
     }
 
-    function swapCode(address acc, address with) external onlyBackend {
-        evmWriter.swapCode(acc, with);
+    function swapCode(address acc, address where) external onlyBackend {
+        evmWriter.swapCode(acc, where);
     }
 
     function setStorage(address acc, bytes32 key, bytes32 value) external onlyBackend {
@@ -279,7 +279,7 @@ interface EVMWriter {
 
     function copyCode(address acc, address from) external;
 
-    function swapCode(address acc, address with) external;
+    function swapCode(address acc, address where) external;
 
     function setStorage(address acc, bytes32 key, bytes32 value) external;
 

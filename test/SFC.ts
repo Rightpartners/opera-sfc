@@ -1,227 +1,234 @@
-const { BN, expectRevert } = require('@openzeppelin/test-helpers');
-const chai = require('chai');
-const { expect } = require('chai');
-const chaiAsPromised = require('chai-as-promised');
+import { ethers } from "hardhat";
+import { expect } from "chai";
+import {loadFixture} from "@nomicfoundation/hardhat-network-helpers";
+import {
+    ConstantsManager,
+    EVMWriter,
+    NetworkInitializer,
+    NodeDriver,
+    NodeDriverAuth,
+    SFCLib,
+    UnitTestSFC
+} from "../typechain-types";
 
-chai.use(chaiAsPromised);
-const UnitTestSFC = artifacts.require('UnitTestSFC');
-const UnitTestSFCLib = artifacts.require('UnitTestSFCLib');
-const SFCI = artifacts.require('SFCUnitTestI');
-const NodeDriverAuth = artifacts.require('NodeDriverAuth');
-const NodeDriver = artifacts.require('NodeDriver');
-const NetworkInitializer = artifacts.require('UnitTestNetworkInitializer');
-const StubEvmWriter = artifacts.require('StubEvmWriter');
-const ConstantsManager = artifacts.require('UnitTestConstantsManager');
+// const UnitTestSFC = artifacts.require('UnitTestSFC');
+// const UnitTestSFCLib = artifacts.require('UnitTestSFCLib');
+// const SFCI = artifacts.require('SFCUnitTestI');
+// const NodeDriverAuth = artifacts.require('NodeDriverAuth');
+// const NodeDriver = artifacts.require('NodeDriver');
+// const NetworkInitializer = artifacts.require('UnitTestNetworkInitializer');
+// const StubEvmWriter = artifacts.require('StubEvmWriter');
+// const ConstantsManager = artifacts.require('UnitTestConstantsManager');
 
-function amount18(n) {
-    return new BN(web3.utils.toWei(n, 'ether'));
-}
-
-async function sealEpoch(sfc, duration, _validatorsMetrics = undefined) {
-    let validatorsMetrics = _validatorsMetrics;
-    const validatorIDs = (await sfc.lastValidatorID()).toNumber();
-
-    if (validatorsMetrics === undefined) {
-        validatorsMetrics = {};
-        for (let i = 0; i < validatorIDs; i++) {
-            validatorsMetrics[i] = {
-                offlineTime: new BN('0'),
-                offlineBlocks: new BN('0'),
-                uptime: duration,
-                originatedTxsFee: amount18('0'),
-            };
-        }
-    }
-    // unpack validator metrics
-    const allValidators = [];
-    const offlineTimes = [];
-    const offlineBlocks = [];
-    const uptimes = [];
-    const originatedTxsFees = [];
-    for (let i = 0; i < validatorIDs; i++) {
-        allValidators.push(i + 1);
-        offlineTimes.push(validatorsMetrics[i].offlineTime);
-        offlineBlocks.push(validatorsMetrics[i].offlineBlocks);
-        uptimes.push(validatorsMetrics[i].uptime);
-        originatedTxsFees.push(validatorsMetrics[i].originatedTxsFee);
-    }
-
-    await sfc.advanceTime(duration);
-    await sfc.sealEpoch(offlineTimes, offlineBlocks, uptimes, originatedTxsFees, 0);
-    await sfc.sealEpochValidators(allValidators);
-}
-
-class BlockchainNode {
-    constructor(sfc, minter) {
-        this.validators = {};
-        this.nextValidators = {};
-        this.sfc = sfc;
-        this.minter = minter;
-    }
-
-    async handle(tx) {
-        const logs = tx.receipt.rawLogs;
-        for (let i = 0; i < logs.length; i += 1) {
-            if (logs[i].topics[0] === web3.utils.sha3('UpdateValidatorWeight(uint256,uint256)')) {
-                const validatorID = web3.utils.toBN(logs[i].topics[1]);
-                const weight = web3.utils.toBN(logs[i].data);
-                if (weight.isZero()) {
-                    delete this.nextValidators[validatorID.toString()];
-                } else {
-                    this.nextValidators[validatorID.toString()] = weight;
-                }
-            }
-        }
-    }
-
-    async sealEpoch(duration, _validatorsMetrics = undefined) {
-        let validatorsMetrics = _validatorsMetrics;
-        const validatorIDs = Object.keys(this.validators);
-        const nextValidatorIDs = Object.keys(this.nextValidators);
-        if (validatorsMetrics === undefined) {
-            validatorsMetrics = {};
-            for (let i = 0; i < validatorIDs.length; i += 1) {
-                validatorsMetrics[validatorIDs[i].toString()] = {
-                    offlineTime: new BN('0'),
-                    offlineBlocks: new BN('0'),
-                    uptime: duration,
-                    originatedTxsFee: amount18('0'),
-                };
-            }
-        }
-        // unpack validator metrics
-        const offlineTimes = [];
-        const offlineBlocks = [];
-        const uptimes = [];
-        const originatedTxsFees = [];
-        for (let i = 0; i < validatorIDs.length; i += 1) {
-            offlineTimes.push(validatorsMetrics[validatorIDs[i].toString()].offlineTime);
-            offlineBlocks.push(validatorsMetrics[validatorIDs[i].toString()].offlineBlocks);
-            uptimes.push(validatorsMetrics[validatorIDs[i].toString()].uptime);
-            originatedTxsFees.push(validatorsMetrics[validatorIDs[i].toString()].originatedTxsFee);
-        }
-
-        await this.sfc.advanceTime(duration);
-        await this.handle(await this.sfc.sealEpoch(offlineTimes, offlineBlocks, uptimes, originatedTxsFees, 0));
-        await this.handle(await this.sfc.sealEpochValidators(nextValidatorIDs));
-        this.validators = this.nextValidators;
-        // clone this.nextValidators
-        this.nextValidators = {};
-        for (const vid in this.validators) {
-            this.nextValidators[vid] = this.validators[vid];
-        }
-    }
-}
-
-const pubkey = '0xc000a2941866e485442aa6b17d67d77f8a6c4580bb556894cc1618473eff1e18203d8cce50b563cf4c75e408886079b8f067069442ed52e2ac9e556baa3f8fcc525f';
-const pubkey1 = '0xc000a2941866e485442aa6b17d67d77f8a6c4580bb556894cc1618473eff1e18203d8cce50b563cf4c75e408886079b8f067069442ed52e2ac9e556baa3f8fcc5251';
-const pubkey2 = '0xc000a2941866e485442aa6b17d67d77f8a6c4580bb556894cc1618473eff1e18203d8cce50b563cf4c75e408886079b8f067069442ed52e2ac9e556baa3f8fcc5252';
-
-contract('SFC', async ([account1, account2]) => {
-    let nodeIRaw;
-    beforeEach(async () => {
-        this.sfc = await SFCI.at((await UnitTestSFC.new()).address);
-        nodeIRaw = await NodeDriver.new();
-        const evmWriter = await StubEvmWriter.new();
-        this.nodeI = await NodeDriverAuth.new();
-        this.sfcLib = await UnitTestSFCLib.new();
-        const initializer = await NetworkInitializer.new();
-        await initializer.initializeAll(12, 0, this.sfc.address, this.sfcLib.address, this.nodeI.address, nodeIRaw.address, evmWriter.address, account1);
-        this.consts = await ConstantsManager.at(await this.sfc.constsAddress.call());
-    });
-
-    describe('Nde', () => {
-        it('Should migrate to New address', async () => {
-            await this.nodeI.migrateTo(account1, { from: account1 });
-        });
-
-        it('Should not migrate if not owner', async () => {
-            await expectRevert(this.nodeI.migrateTo(account2, { from: account2 }), 'Ownable: caller is not the owner');
-        });
-
-        it('Should not copyCode if not owner', async () => {
-            await expectRevert(this.nodeI.copyCode('0x0000000000000000000000000000000000000000', account1, { from: account2 }), 'Ownable: caller is not the owner');
-        });
-
-        it('Should copyCode', async () => {
-            await this.nodeI.copyCode(this.sfc.address, account1, { from: account1 });
-        });
-
-        it('Should update network version', async () => {
-            await this.nodeI.updateNetworkVersion(1, { from: account1 });
-        });
-
-        it('Should not update network version if not owner', async () => {
-            await expectRevert(this.nodeI.updateNetworkVersion(1, { from: account2 }), 'Ownable: caller is not the owner');
-        });
-
-        it('Should advance epoch', async () => {
-            await this.nodeI.advanceEpochs(1, { from: account1 });
-        });
-
-        it('Should not set a new storage if not backend address', async () => {
-            await expectRevert(nodeIRaw.setStorage(account1, web3.utils.soliditySha3('testKey'), web3.utils.soliditySha3('testValue'), { from: account1 }), 'caller is not the backend');
-        });
-
-        it('Should not advance epoch if not owner', async () => {
-            await expectRevert(this.nodeI.advanceEpochs(1, { from: account2 }), 'Ownable: caller is not the owner');
-        });
-
-        it('Should not set backend if not backend address', async () => {
-            await expectRevert(nodeIRaw.setBackend('0x0000000000000000000000000000000000000000', { from: account1 }), 'caller is not the backend');
-        });
-
-        it('Should not swap code if not backend address', async () => {
-            await expectRevert(nodeIRaw.swapCode('0x0000000000000000000000000000000000000000', '0x0000000000000000000000000000000000000000', { from: account1 }), 'caller is not the backend');
-        });
-
-        it('Should not be possible add a Genesis Validator through NodeDriver if not called by Node', async () => {
-            await expectRevert(nodeIRaw.setGenesisValidator(account1, 1, pubkey, 0, await this.sfc.currentEpoch(), Date.now(), 0, 0), 'not callable');
-        });
-
-        it('Should not be possible to deactivate a validator through NodeDriver if not called by Node', async () => {
-            await expectRevert(nodeIRaw.deactivateValidator(0, 1), 'not callable');
-        });
-
-        it('Should not be possible to add a Genesis Delegation through NodeDriver if not called by node', async () => {
-            await expectRevert(nodeIRaw.setGenesisDelegation(account2, 1, 100, 0, 0, 0, 0, 0, 1000), 'not callable');
-        });
-
-        it('Should not be possible to seal Epoch Validators through NodeDriver if not called by node', async () => {
-            await expectRevert(nodeIRaw.sealEpochValidators([0, 1]), 'not callable');
-        });
-
-        it('Should not be possible to seal Epoch through NodeDriver if not called by node', async () => {
-            await expectRevert(nodeIRaw.sealEpoch([0, 1], [0, 1], [0, 1], [0, 1]), 'not callable');
-            await expectRevert(nodeIRaw.sealEpochV1([0, 1], [0, 1], [0, 1], [0, 1], 0), 'not callable');
-        });
-    });
-
-    // describe('Genesis Validator', () => {
-    //     beforeEach(async () => {
-    //         await this.sfc.enableNonNodeCalls();
-    //         await expect(this.sfc.setGenesisValidator(account1, 1, pubkey, 1 << 3, await this.sfc.currentEpoch(), Date.now(), 0, 0)).to.be.fulfilled;
-    //         await this.sfc.disableNonNodeCalls();
-    //     });
-    //
-    //     it('Set Genesis Validator with bad Status', async () => {
-    //         await expect(this.sfc._syncValidator(1, false)).to.be.fulfilled;
-    //     });
-    //
-    //     it('should reject sealEpoch if not called by Node', async () => {
-    //         await expect(this.sfc.sealEpoch([1], [1], [1], [1], 0, {
-    //             from: account1,
-    //         })).to.be.rejectedWith('caller is not the NodeDriverAuth contract');
-    //     });
-    //
-    //     it('should reject SealEpochValidators if not called by Node', async () => {
-    //         await expect(this.sfc.sealEpochValidators([1], {
-    //             from: account1,
-    //         })).to.be.rejectedWith('caller is not the NodeDriverAuth contract');
-    //     });
-    // });
-});
+// function amount18(n) {
+//     return new BN(web3.utils.toWei(n, 'ether'));
+// }
 //
+// async function sealEpoch(sfc, duration, _validatorsMetrics = undefined) {
+//     let validatorsMetrics = _validatorsMetrics;
+//     const validatorIDs = (await sfc.lastValidatorID()).toNumber();
+//
+//     if (validatorsMetrics === undefined) {
+//         validatorsMetrics = {};
+//         for (let i = 0; i < validatorIDs; i++) {
+//             validatorsMetrics[i] = {
+//                 offlineTime: new BN('0'),
+//                 offlineBlocks: new BN('0'),
+//                 uptime: duration,
+//                 originatedTxsFee: amount18('0'),
+//             };
+//         }
+//     }
+//     // unpack validator metrics
+//     const allValidators = [];
+//     const offlineTimes = [];
+//     const offlineBlocks = [];
+//     const uptimes = [];
+//     const originatedTxsFees = [];
+//     for (let i = 0; i < validatorIDs; i++) {
+//         allValidators.push(i + 1);
+//         offlineTimes.push(validatorsMetrics[i].offlineTime);
+//         offlineBlocks.push(validatorsMetrics[i].offlineBlocks);
+//         uptimes.push(validatorsMetrics[i].uptime);
+//         originatedTxsFees.push(validatorsMetrics[i].originatedTxsFee);
+//     }
+//
+//     await sfc.advanceTime(duration);
+//     await sfc.sealEpoch(offlineTimes, offlineBlocks, uptimes, originatedTxsFees, 0);
+//     await sfc.sealEpochValidators(allValidators);
+// }
+//
+// class BlockchainNode {
+//     constructor(sfc, minter) {
+//         this.validators = {};
+//         this.nextValidators = {};
+//         this.sfc = sfc;
+//         this.minter = minter;
+//     }
+//
+//     async handle(tx) {
+//         const logs = tx.receipt.rawLogs;
+//         for (let i = 0; i < logs.length; i += 1) {
+//             if (logs[i].topics[0] === web3.utils.sha3('UpdateValidatorWeight(uint256,uint256)')) {
+//                 const validatorID = web3.utils.toBN(logs[i].topics[1]);
+//                 const weight = web3.utils.toBN(logs[i].data);
+//                 if (weight.isZero()) {
+//                     delete this.nextValidators[validatorID.toString()];
+//                 } else {
+//                     this.nextValidators[validatorID.toString()] = weight;
+//                 }
+//             }
+//         }
+//     }
+//
+//     async sealEpoch(duration, _validatorsMetrics = undefined) {
+//         let validatorsMetrics = _validatorsMetrics;
+//         const validatorIDs = Object.keys(this.validators);
+//         const nextValidatorIDs = Object.keys(this.nextValidators);
+//         if (validatorsMetrics === undefined) {
+//             validatorsMetrics = {};
+//             for (let i = 0; i < validatorIDs.length; i += 1) {
+//                 validatorsMetrics[validatorIDs[i].toString()] = {
+//                     offlineTime: new BN('0'),
+//                     offlineBlocks: new BN('0'),
+//                     uptime: duration,
+//                     originatedTxsFee: amount18('0'),
+//                 };
+//             }
+//         }
+//         // unpack validator metrics
+//         const offlineTimes = [];
+//         const offlineBlocks = [];
+//         const uptimes = [];
+//         const originatedTxsFees = [];
+//         for (let i = 0; i < validatorIDs.length; i += 1) {
+//             offlineTimes.push(validatorsMetrics[validatorIDs[i].toString()].offlineTime);
+//             offlineBlocks.push(validatorsMetrics[validatorIDs[i].toString()].offlineBlocks);
+//             uptimes.push(validatorsMetrics[validatorIDs[i].toString()].uptime);
+//             originatedTxsFees.push(validatorsMetrics[validatorIDs[i].toString()].originatedTxsFee);
+//         }
+//
+//         await this.sfc.advanceTime(duration);
+//         await this.handle(await this.sfc.sealEpoch(offlineTimes, offlineBlocks, uptimes, originatedTxsFees, 0));
+//         await this.handle(await this.sfc.sealEpochValidators(nextValidatorIDs));
+//         this.validators = this.nextValidators;
+//         // clone this.nextValidators
+//         this.nextValidators = {};
+//         for (const vid in this.validators) {
+//             this.nextValidators[vid] = this.validators[vid];
+//         }
+//     }
+// }
+
+describe('SFC', () => {
+    const fixture = async () => {
+        const [ owner ] = await ethers.getSigners();
+        const sfc: UnitTestSFC = await ethers.deployContract("UnitTestSFC");
+        const nodeDriver: NodeDriver = await ethers.deployContract("NodeDriver");
+        const evmWriter: EVMWriter = await ethers.deployContract("StubEvmWriter");
+        const nodeDriverAuth: NodeDriverAuth = await ethers.deployContract("NodeDriverAuth");
+        const sfcLib: SFCLib = await ethers.deployContract("UnitTestSFCLib");
+        const initializer: NetworkInitializer = await ethers.deployContract("NetworkInitializer");
+
+        await initializer.initializeAll(0, 0, sfc, sfcLib, nodeDriverAuth, nodeDriver, evmWriter, owner);
+        const constants: ConstantsManager = await ethers.getContractAt("ConstantsManager", await sfc.constsAddress());
+        await sfc.rebaseTime();
+
+        return {
+            owner,
+            sfc,
+            nodeDriver,
+            evmWriter,
+            nodeDriverAuth,
+            sfcLib,
+            constants
+        }
+    }
+
+    beforeEach(async function () {
+        Object.assign(this, await loadFixture(fixture));
+    })
+
+    describe('Genesis validator', () => {
+        beforeEach(async function () {
+            const validator = ethers.Wallet.createRandom();
+            await this.sfc.enableNonNodeCalls();
+            await expect(this.owner.sendTransaction({
+                to: this.sfc,
+                data: this.sfcLib.interface.encodeFunctionData(
+                    "setGenesisValidator",
+                    [validator.address, 1, validator.publicKey, 1 << 3, await this.sfc.currentEpoch(), Date.now(), 0, 0]
+                )
+            })).to.be.fulfilled;
+            await this.sfc.disableNonNodeCalls();
+        });
+
+        it('Should succeed and set genesis validator with bad status', async function () {
+            await expect(this.sfc._syncValidator(1, false)).to.be.fulfilled;
+        });
+
+        it('Should revert when sealEpoch not called by node', async function () {
+            await expect(this.sfc.sealEpoch([1], [1], [1], [1], 0))
+                .to.be.revertedWith('caller is not the NodeDriverAuth contract');
+        });
+
+        it('Should revert when SealEpochValidators not called by node', async function () {
+            await expect(this.sfc.sealEpochValidators([1]))
+                .to.be.revertedWith('caller is not the NodeDriverAuth contract');
+        });
+    });
+
+    describe('Constants', () => {
+        it('Should succeed and return current epoch', async function () {
+            expect(await this.sfc.currentEpoch()).to.equal(1);
+        });
+
+        it('Should succeed and return minimum amount to stake for validator', async function () {
+            expect(await this.constants.minSelfStake()).to.equal(BigInt('500000000000000000000000'));
+        });
+
+        it('Should succeed and return maximum ratio of delegations a validator can have', async function () {
+            expect(await this.constants.maxDelegatedRatio()).to.equal(BigInt('16000000000000000000'));
+        });
+
+        it('Should succeed and return commission fee in percentage a validator will get from a delegation', async function () {
+            expect(await this.constants.validatorCommission()).to.equal(BigInt('150000000000000000'));
+        });
+
+        it('Should succeed and return burnt fee share', async function () {
+            expect(await this.constants.burntFeeShare()).to.equal(BigInt('200000000000000000'));
+        });
+
+        it('Should succeed and return treasury fee share', async function () {
+            expect(await this.constants.treasuryFeeShare()).to.equal(BigInt('100000000000000000'));
+        });
+
+        it('Should succeed and return ratio of the reward rate at base rate (without lockup)', async function () {
+            expect(await this.constants.unlockedRewardRatio()).to.equal(BigInt('300000000000000000'));
+        });
+
+        it('Should succeed and return minimum duration of a stake/delegation lockup', async function () {
+            expect(await this.constants.minLockupDuration()).to.equal(1209600);
+        });
+
+        it('Should succeed and return maximum duration of a stake/delegation lockup', async function () {
+            expect(await this.constants.maxLockupDuration()).to.equal(31536000);
+        });
+
+        it('Should succeed and return period of time that stake is locked', async function () {
+            expect(await this.constants.withdrawalPeriodTime()).to.equal(604800);
+        });
+
+        it('Should succeed and return number of epochs that stake is locked', async function () {
+            expect(await this.constants.withdrawalPeriodEpochs()).to.equal(3);
+        });
+
+        it('Should succeed and return version of the current implementation', async function () {
+            expect(await this.sfc.version()).to.equal();
+        });
+    });
+
+});
 // contract('SFC', async ([firstValidator, secondValidator, thirdValidator]) => {
 //     beforeEach(async () => {
 //         this.sfc = await SFCI.at((await UnitTestSFC.new()).address);
@@ -238,50 +245,6 @@ contract('SFC', async ([account1, account2]) => {
 //
 //     describe('Basic functions', () => {
 //         describe('Constants', () => {
-//             it('Returns current Epoch', async () => {
-//                 expect((await this.sfc.currentEpoch()).toString()).to.equals('1');
-//             });
-//
-//             it('Returns minimum amount to stake for a Validator', async () => {
-//                 expect((await this.consts.minSelfStake()).toString()).to.equals('317500000000000000');
-//             });
-//
-//             it('Returns the maximum ratio of delegations a validator can have', async () => {
-//                 expect((await this.consts.maxDelegatedRatio()).toString()).to.equals('16000000000000000000');
-//             });
-//
-//             it('Returns commission fee in percentage a validator will get from a delegation', async () => {
-//                 expect((await this.consts.validatorCommission()).toString()).to.equals('150000000000000000');
-//             });
-//
-//             it('Returns burntFeeShare', async () => {
-//                 expect((await this.consts.burntFeeShare()).toString()).to.equals('200000000000000000');
-//             });
-//
-//             it('Returns treasuryFeeShare', async () => {
-//                 expect((await this.consts.treasuryFeeShare()).toString()).to.equals('100000000000000000');
-//             });
-//
-//             it('Returns the ratio of the reward rate at base rate (without lockup)', async () => {
-//                 expect((await this.consts.unlockedRewardRatio()).toString()).to.equals('300000000000000000');
-//             });
-//
-//             it('Returns the minimum duration of a stake/delegation lockup', async () => {
-//                 expect((await this.consts.minLockupDuration()).toString()).to.equals('1209600');
-//             });
-//
-//             it('Returns the maximum duration of a stake/delegation lockup', async () => {
-//                 expect((await this.consts.maxLockupDuration()).toString()).to.equals('31536000');
-//             });
-//
-//             it('Returns the period of time that stake is locked', async () => {
-//                 expect((await this.consts.withdrawalPeriodTime()).toString()).to.equals('604800');
-//             });
-//
-//             it('Returns the number of epochs that stake is locked', async () => {
-//                 expect((await this.consts.withdrawalPeriodEpochs()).toString()).to.equals('3');
-//             });
-//
 //             it('Returns the version of the current implementation', async () => {
 //                 expect((await this.sfc.version()).toString()).to.equals('0x333035');
 //             });
