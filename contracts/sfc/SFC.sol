@@ -35,6 +35,10 @@ contract SFC is SFCBase, Version {
         _delegate(libAddress);
     }
 
+    receive() external payable {
+        revert("transfers not allowed");
+    }
+
     /*
     Getters
     */

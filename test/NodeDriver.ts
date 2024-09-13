@@ -7,13 +7,13 @@ import {
     NodeDriver,
     NodeDriverAuth,
     SFCI,
-    SFCLib
+    SFCLib, UnitTestSFC
 } from "../typechain-types";
 
 describe('NodeDriver', () => {
     const fixture = async () => {
         const [ owner, nonOwner ] = await ethers.getSigners();
-        const sfc: SFCI = await ethers.deployContract("UnitTestSFC");
+        const sfc: UnitTestSFC = await ethers.deployContract("UnitTestSFC");
         const nodeDriver: NodeDriver = await ethers.deployContract("NodeDriver");
         const evmWriter: EVMWriter = await ethers.deployContract("StubEvmWriter");
         const nodeDriverAuth: NodeDriverAuth = await ethers.deployContract("NodeDriverAuth");
