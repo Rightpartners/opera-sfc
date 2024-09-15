@@ -140,7 +140,9 @@ contract NodeDriverAuth is Initializable, Ownable {
         while (num != 0) {
             bstr[strIdx] = bytes1(uint8(48 + num % 10));
             num /= 10;
-            strIdx--;
+            if (strIdx > 0) {
+                strIdx--;
+            }
         }
         return string(bstr);
     }
