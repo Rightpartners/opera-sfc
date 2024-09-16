@@ -2,23 +2,17 @@ import {ethers, network} from "hardhat";
 import { expect } from "chai";
 import {loadFixture} from "@nomicfoundation/hardhat-network-helpers";
 import {
-    ConstantsManager,
     EVMWriter,
-    NetworkInitializer,
     NodeDriver,
     NodeDriverAuth,
     SFCLib,
+    UnitTestConstantsManager,
+    UnitTestNetworkInitializer,
     UnitTestSFC
 } from "../typechain-types";
 import {beforeEach} from "mocha";
 import {BlockchainNode} from "./helpers/BlockchainNode";
-
-async function fundAccount(account: string, ether: string) {
-    await network.provider.send(
-        "hardhat_setBalance",
-        [account, ethers.hexlify(ethers.toUtf8Bytes(ethers.parseEther(ether).toString()))]
-    );
-}
+import {HardhatEthersSigner} from "@nomicfoundation/hardhat-ethers/signers";
 
 describe('SFC', () => {
     const fixture = async () => {
@@ -28,11 +22,31 @@ describe('SFC', () => {
         const evmWriter: EVMWriter = await ethers.deployContract("StubEvmWriter");
         const nodeDriverAuth: NodeDriverAuth = await ethers.deployContract("NodeDriverAuth");
         const sfcLib: SFCLib = await ethers.deployContract("UnitTestSFCLib");
-        const initializer: NetworkInitializer = await ethers.deployContract("NetworkInitializer");
+        const initializer: UnitTestNetworkInitializer = await ethers.deployContract("UnitTestNetworkInitializer");
 
         await initializer.initializeAll(0, 0, sfc, sfcLib, nodeDriverAuth, nodeDriver, evmWriter, owner);
-        const constants: ConstantsManager = await ethers.getContractAt("ConstantsManager", await sfc.constsAddress());
+        const constants: UnitTestConstantsManager = await ethers.getContractAt("UnitTestConstantsManager", await sfc.constsAddress());
         await sfc.rebaseTime();
+
+        const callLibMethod = async (method: string, args: any[], sender: HardhatEthersSigner = owner, ether: string = '0') => {
+            return sender.sendTransaction({
+                to: sfc,
+                value: ethers.parseEther(ether),
+                // @ts-ignore
+                data: sfcLib.interface.encodeFunctionData(method, args)
+            });
+        };
+
+        const readLibData = async (method: string, args: any[]) => {
+            const res = await owner.call({
+                to: sfc,
+                // @ts-ignore
+                data: sfcLib.interface.encodeFunctionData(method, args)
+            });
+            // @ts-ignore
+            const decoded = sfcLib.interface.decodeFunctionResult(method, res);
+            return decoded.length === 1 ? decoded[0] : [...decoded];
+        }
 
         return {
             owner,
@@ -42,7 +56,9 @@ describe('SFC', () => {
             nodeDriver,
             nodeDriverAuth,
             sfcLib,
-            constants
+            constants,
+            callLibMethod,
+            readLibData
         }
     }
 
@@ -61,13 +77,12 @@ describe('SFC', () => {
     //     beforeEach(async function () {
     //         const validator = ethers.Wallet.createRandom();
     //         await this.sfc.enableNonNodeCalls();
-    //         await expect(this.owner.sendTransaction({
-    //             to: this.sfc,
-    //             data: this.sfcLib.interface.encodeFunctionData(
+    //         await expect(
+    //             this.callLibMethod(
     //                 "setGenesisValidator",
     //                 [validator.address, 1, validator.publicKey, 1 << 3, await this.sfc.currentEpoch(), Date.now(), 0, 0]
     //             )
-    //         })).to.be.fulfilled;
+    //         ).to.be.fulfilled;
     //         await this.sfc.disableNonNodeCalls();
     //     });
     //
@@ -108,39 +123,39 @@ describe('SFC', () => {
     //     });
     //
     //     it('Should succeed and return minimum amount to stake for validator', async function () {
-    //         expect(await this.constants.minSelfStake()).to.equal(BigInt('500000000000000000000000'));
+    //         expect(await this.constants.minSelfStake()).to.equal(ethers.parseEther('0.3175'));
     //     });
     //
     //     it('Should succeed and return maximum ratio of delegations a validator can have', async function () {
-    //         expect(await this.constants.maxDelegatedRatio()).to.equal(BigInt('16000000000000000000'));
+    //         expect(await this.constants.maxDelegatedRatio()).to.equal(ethers.parseEther('16'));
     //     });
     //
     //     it('Should succeed and return commission fee in percentage a validator will get from a delegation', async function () {
-    //         expect(await this.constants.validatorCommission()).to.equal(BigInt('150000000000000000'));
+    //         expect(await this.constants.validatorCommission()).to.equal(ethers.parseEther('0.15'));
     //     });
     //
     //     it('Should succeed and return burnt fee share', async function () {
-    //         expect(await this.constants.burntFeeShare()).to.equal(BigInt('200000000000000000'));
+    //         expect(await this.constants.burntFeeShare()).to.equal(ethers.parseEther('0.2'));
     //     });
     //
     //     it('Should succeed and return treasury fee share', async function () {
-    //         expect(await this.constants.treasuryFeeShare()).to.equal(BigInt('100000000000000000'));
+    //         expect(await this.constants.treasuryFeeShare()).to.equal(ethers.parseEther('0.1'));
     //     });
     //
     //     it('Should succeed and return ratio of the reward rate at base rate (without lockup)', async function () {
-    //         expect(await this.constants.unlockedRewardRatio()).to.equal(BigInt('300000000000000000'));
+    //         expect(await this.constants.unlockedRewardRatio()).to.equal(ethers.parseEther('0.3'));
     //     });
     //
     //     it('Should succeed and return minimum duration of a stake/delegation lockup', async function () {
-    //         expect(await this.constants.minLockupDuration()).to.equal(1209600);
+    //         expect(await this.constants.minLockupDuration()).to.equal(86400 * 14);
     //     });
     //
     //     it('Should succeed and return maximum duration of a stake/delegation lockup', async function () {
-    //         expect(await this.constants.maxLockupDuration()).to.equal(31536000);
+    //         expect(await this.constants.maxLockupDuration()).to.equal(86400 * 365);
     //     });
     //
     //     it('Should succeed and return period of time that stake is locked', async function () {
-    //         expect(await this.constants.withdrawalPeriodTime()).to.equal(604800);
+    //         expect(await this.constants.withdrawalPeriodTime()).to.equal(60 * 60 * 24 * 7);
     //     });
     //
     //     it('Should succeed and return number of epochs that stake is locked', async function () {
@@ -155,11 +170,6 @@ describe('SFC', () => {
     // describe('Create validator', () => {
     //     const validatorsFixture = async () => {
     //         const [ validator, secondValidator ] = await ethers.getSigners();
-    //
-    //         // set sufficient balance for new validators
-    //         await fundAccount(validator.address, '1000000');
-    //         await fundAccount(secondValidator.address, '1000000');
-    //
     //         return {
     //             validator,
     //             secondValidator
@@ -171,38 +181,22 @@ describe('SFC', () => {
     //     });
     //
     //     it('Should succeed and create a validator and return its id', async function () {
-    //         await expect(this.validator.sendTransaction({
-    //             to: this.sfc,
-    //             value: ethers.parseEther('500000'),
-    //             data: this.sfcLib.interface.encodeFunctionData(
-    //                 "createValidator",
-    //                 [ethers.Wallet.createRandom().publicKey]
-    //             )
-    //         })).to.be.fulfilled;
-    //
+    //         await expect(
+    //             this.callLibMethod("createValidator", [ethers.Wallet.createRandom().publicKey], this.validator, '0.4')
+    //         ).to.be.fulfilled;
     //         expect(await this.sfc.lastValidatorID()).to.equal(1);
     //     });
     //
     //     it('Should revert when insufficient self-stake to create a validator', async function () {
-    //         await expect(this.validator.sendTransaction({
-    //             to: this.sfc,
-    //             value: ethers.parseEther('10'),
-    //             data: this.sfcLib.interface.encodeFunctionData(
-    //                 "createValidator",
-    //                 [ethers.Wallet.createRandom().publicKey]
-    //             )
-    //         })).to.be.revertedWith('insufficient self-stake');
+    //         await expect(
+    //             this.callLibMethod("createValidator", [ethers.Wallet.createRandom().publicKey], this.validator, '0.1')
+    //         ).to.be.revertedWith('insufficient self-stake');
     //     });
     //
     //     it('Should revert when public key is empty while creating a validator', async function () {
-    //         await expect(this.validator.sendTransaction({
-    //             to: this.sfc,
-    //             value: ethers.parseEther('500000'),
-    //             data: this.sfcLib.interface.encodeFunctionData(
-    //                 "createValidator",
-    //                 ['0x']
-    //             )
-    //         })).to.be.revertedWith('empty pubkey');
+    //         await expect(
+    //             this.callLibMethod("createValidator", ["0x"], this.validator, '0.4')
+    //         ).to.be.revertedWith('empty pubkey');
     //     });
     //
     //     it('Should succeed and create two validators and return id of last validator', async function () {
@@ -210,184 +204,94 @@ describe('SFC', () => {
     //         expect(await this.sfc.getValidatorID(this.validator)).to.equal(0);
     //         expect(await this.sfc.getValidatorID(this.secondValidator)).to.equal(0);
     //
-    //         await expect(this.validator.sendTransaction({
-    //             to: this.sfc,
-    //             value: ethers.parseEther('500000'),
-    //             data: this.sfcLib.interface.encodeFunctionData(
-    //                 "createValidator",
-    //                 [ethers.Wallet.createRandom().publicKey]
-    //             )
-    //         })).to.be.fulfilled;
+    //         await expect(
+    //             this.callLibMethod("createValidator", [ethers.Wallet.createRandom().publicKey], this.validator, '0.4')
+    //         ).to.be.fulfilled;
     //         expect(await this.sfc.getValidatorID(this.validator)).to.equal(1);
     //         expect(await this.sfc.lastValidatorID()).to.equal(1);
     //
-    //         await expect(this.secondValidator.sendTransaction({
-    //             to: this.sfc,
-    //             value: ethers.parseEther('600000'),
-    //             data: this.sfcLib.interface.encodeFunctionData(
-    //                 "createValidator",
-    //                 [ethers.Wallet.createRandom().publicKey]
-    //             )
-    //         })).to.be.fulfilled;
+    //         await expect(
+    //             this.callLibMethod("createValidator", [ethers.Wallet.createRandom().publicKey], this.secondValidator, '0.5')
+    //         ).to.be.fulfilled;
     //         expect(await this.sfc.getValidatorID(this.secondValidator)).to.equal(2);
     //         expect(await this.sfc.lastValidatorID()).to.equal(2);
     //     });
     //
     //     it('Should succeed and return delegation', async function () {
-    //         await expect(this.secondValidator.sendTransaction({
-    //             to: this.sfc,
-    //             value: ethers.parseEther('500000'),
-    //             data: this.sfcLib.interface.encodeFunctionData(
-    //                 "createValidator",
-    //                 [ethers.Wallet.createRandom().publicKey]
-    //             )
-    //         })).to.be.fulfilled;
+    //         await expect(
+    //             this.callLibMethod("createValidator", [ethers.Wallet.createRandom().publicKey], this.secondValidator, '0.5')
+    //         ).to.be.fulfilled;
     //
-    //         await expect(this.secondValidator.sendTransaction({
-    //             to: this.sfc,
-    //             value: ethers.parseEther('10'),
-    //             data: this.sfcLib.interface.encodeFunctionData(
-    //                 "delegate",
-    //                 [1]
-    //             )
-    //         })).to.be.fulfilled;
+    //         await expect(
+    //             this.callLibMethod("delegate", [1], this.secondValidator, '0.1')
+    //         ).to.be.fulfilled;
     //     });
     //
     //     it('Should revert when staking to non-existing validator', async function () {
-    //         await expect(this.validator.sendTransaction({
-    //             to: this.sfc,
-    //             value: ethers.parseEther('10'),
-    //             data: this.sfcLib.interface.encodeFunctionData(
-    //                 "delegate",
-    //                 [1]
-    //             )
-    //         })).to.be.revertedWith("validator doesn't exist");
+    //         await expect(
+    //             this.callLibMethod("delegate", [1], this.secondValidator, '0.1')
+    //         ).to.be.revertedWith("validator doesn't exist");
     //     });
     //
     //     it('Should succeed and stake with different delegators', async function () {
-    //         await expect(this.validator.sendTransaction({
-    //             to: this.sfc,
-    //             value: ethers.parseEther('500000'),
-    //             data: this.sfcLib.interface.encodeFunctionData(
-    //                 "createValidator",
-    //                 [ethers.Wallet.createRandom().publicKey]
-    //             )
-    //         })).to.be.fulfilled;
-    //         await expect(this.validator.sendTransaction({
-    //             to: this.sfc,
-    //             value: ethers.parseEther('10'),
-    //             data: this.sfcLib.interface.encodeFunctionData(
-    //                 "delegate",
-    //                 [1]
-    //             )
-    //         })).to.be.fulfilled;
+    //         await expect(
+    //             this.callLibMethod("createValidator", [ethers.Wallet.createRandom().publicKey], this.validator, '0.5')
+    //         ).to.be.fulfilled;
+    //         await expect(
+    //             this.callLibMethod("delegate", [1], this.validator, '0.1')
+    //         ).to.be.fulfilled;
     //
-    //         await expect(this.secondValidator.sendTransaction({
-    //             to: this.sfc,
-    //             value: ethers.parseEther('500000'),
-    //             data: this.sfcLib.interface.encodeFunctionData(
-    //                 "createValidator",
-    //                 [ethers.Wallet.createRandom().publicKey]
-    //             )
-    //         })).to.be.fulfilled;
-    //         await expect(this.secondValidator.sendTransaction({
-    //             to: this.sfc,
-    //             value: ethers.parseEther('10'),
-    //             data: this.sfcLib.interface.encodeFunctionData(
-    //                 "delegate",
-    //                 [2]
-    //             )
-    //         })).to.be.fulfilled;
-    //         await expect(this.validator.sendTransaction({
-    //             to: this.sfc,
-    //             value: ethers.parseEther('10'),
-    //             data: this.sfcLib.interface.encodeFunctionData(
-    //                 "delegate",
-    //                 [1]
-    //             )
-    //         })).to.be.fulfilled;
+    //         await expect(
+    //             this.callLibMethod("createValidator", [ethers.Wallet.createRandom().publicKey], this.secondValidator, '0.5')
+    //         ).to.be.fulfilled;
+    //         await expect(
+    //             this.callLibMethod("delegate", [2], this.secondValidator, '0.3')
+    //         ).to.be.fulfilled;
+    //         await expect(
+    //             this.callLibMethod("delegate", [1], this.validator, '0.2')
+    //         ).to.be.fulfilled;
     //     });
     //
     //     it('Should succeed and return the amount of delegated for each Delegator', async function () {
-    //         await expect(this.validator.sendTransaction({
-    //             to: this.sfc,
-    //             value: ethers.parseEther('500000'),
-    //             data: this.sfcLib.interface.encodeFunctionData(
-    //                 "createValidator",
-    //                 [ethers.Wallet.createRandom().publicKey]
-    //             )
-    //         })).to.be.fulfilled;
-    //         await expect(this.validator.sendTransaction({
-    //             to: this.sfc,
-    //             value: ethers.parseEther('10'),
-    //             data: this.sfcLib.interface.encodeFunctionData(
-    //                 "delegate",
-    //                 [1]
-    //             )
-    //         })).to.be.fulfilled;
+    //         await expect(
+    //             this.callLibMethod("createValidator", [ethers.Wallet.createRandom().publicKey], this.validator, '0.5')
+    //         ).to.be.fulfilled;
+    //         await expect(
+    //             this.callLibMethod("delegate", [1], this.validator, '0.1')
+    //         ).to.be.fulfilled;
     //         expect(await this.sfc.getStake(this.validator, await this.sfc.getValidatorID(this.validator)))
-    //             .to.equal(ethers.parseEther('500010'));
+    //             .to.equal(ethers.parseEther('0.6'));
     //
-    //         await expect(this.secondValidator.sendTransaction({
-    //             to: this.sfc,
-    //             value: ethers.parseEther('600000'),
-    //             data: this.sfcLib.interface.encodeFunctionData(
-    //                 "createValidator",
-    //                 [ethers.Wallet.createRandom().publicKey]
-    //             )
-    //         })).to.be.fulfilled;
-    //         await expect(this.secondValidator.sendTransaction({
-    //             to: this.sfc,
-    //             value: ethers.parseEther('100'),
-    //             data: this.sfcLib.interface.encodeFunctionData(
-    //                 "delegate",
-    //                 [2]
-    //             )
-    //         })).to.be.fulfilled;
+    //         await expect(
+    //             this.callLibMethod("createValidator", [ethers.Wallet.createRandom().publicKey], this.secondValidator, '0.5')
+    //         ).to.be.fulfilled;
+    //         await expect(
+    //             this.callLibMethod("delegate", [2], this.secondValidator, '0.3')
+    //         ).to.be.fulfilled;
     //         expect(await this.sfc.getStake(this.secondValidator, await this.sfc.getValidatorID(this.secondValidator)))
-    //             .to.equal(ethers.parseEther('600100'));
+    //             .to.equal(ethers.parseEther('0.8'));
     //
-    //         await expect(this.validator.sendTransaction({
-    //             to: this.sfc,
-    //             value: ethers.parseEther('50'),
-    //             data: this.sfcLib.interface.encodeFunctionData(
-    //                 "delegate",
-    //                 [2]
-    //             )
-    //         })).to.be.fulfilled;
+    //         await expect(
+    //             this.callLibMethod("delegate", [2], this.validator, '0.1')
+    //         ).to.be.fulfilled;
     //         expect(await this.sfc.getStake(this.validator, await this.sfc.getValidatorID(this.secondValidator)))
-    //             .to.equal(ethers.parseEther('50'));
+    //             .to.equal(ethers.parseEther('0.1'));
     //     });
     //
     //     it('Should succeed and return the total of received Stake', async function () {
-    //         await expect(this.validator.sendTransaction({
-    //             to: this.sfc,
-    //             value: ethers.parseEther('500000'),
-    //             data: this.sfcLib.interface.encodeFunctionData(
-    //                 "createValidator",
-    //                 [ethers.Wallet.createRandom().publicKey]
-    //             )
-    //         })).to.be.fulfilled;
+    //         await expect(
+    //             this.callLibMethod("createValidator", [ethers.Wallet.createRandom().publicKey], this.validator, '0.5')
+    //         ).to.be.fulfilled;
     //
-    //         await expect(this.validator.sendTransaction({
-    //             to: this.sfc,
-    //             value: ethers.parseEther('20'),
-    //             data: this.sfcLib.interface.encodeFunctionData(
-    //                 "delegate",
-    //                 [1]
-    //             )
-    //         })).to.be.fulfilled;
-    //         await expect(this.secondValidator.sendTransaction({
-    //             to: this.sfc,
-    //             value: ethers.parseEther('80'),
-    //             data: this.sfcLib.interface.encodeFunctionData(
-    //                 "delegate",
-    //                 [1]
-    //             )
-    //         })).to.be.fulfilled;
+    //         await expect(
+    //             this.callLibMethod("delegate", [1], this.validator, '0.1')
+    //         ).to.be.fulfilled;
+    //         await expect(
+    //             this.callLibMethod("delegate", [1], this.secondValidator, '0.2')
+    //         ).to.be.fulfilled;
     //
     //         const validator = await this.sfc.getValidator(1);
-    //         expect(validator.receivedStake).to.equal(ethers.parseEther('500100'));
+    //         expect(validator.receivedStake).to.equal(ethers.parseEther('0.8'));
     //     });
     // });
     //
@@ -431,32 +335,30 @@ describe('SFC', () => {
     //     });
     //
     //     it('Should succeed and call updateOfflinePenaltyThreshold', async function () {
-    //         await expect(this.constants.updateOfflinePenaltyThresholdTime(86400)).to.be.fulfilled;
-    //         await expect(this.constants.updateOfflinePenaltyThresholdBlocksNum(1000)).to.be.fulfilled;
+    //         await expect(this.constants.updateOfflinePenaltyThresholdTime(86_400)).to.be.fulfilled;
+    //         await expect(this.constants.updateOfflinePenaltyThresholdBlocksNum(1_000)).to.be.fulfilled;
     //     });
     // });
     //
     // describe('Prevent Genesis Call if not node', () => {
     //     it('Should revert when setGenesisValidator is not called not node', async function () {
     //         const validator = ethers.Wallet.createRandom();
-    //         await expect(this.owner.sendTransaction({
-    //             to: this.sfc,
-    //             data: this.sfcLib.interface.encodeFunctionData(
+    //         await expect(
+    //             this.callLibMethod(
     //                 "setGenesisValidator",
     //                 [validator.address, 1, validator.publicKey, 0, await this.sfc.currentEpoch(), Date.now(), 0, 0]
     //             )
-    //         })).to.be.revertedWith('caller is not the NodeDriverAuth contract');
+    //         ).to.be.revertedWith('caller is not the NodeDriverAuth contract');
     //     });
     //
     //     it('Should revert when setGenesisDelegation is not called not node', async function () {
     //         const delegator = ethers.Wallet.createRandom();
-    //         await expect(this.owner.sendTransaction({
-    //             to: this.sfc,
-    //             data: this.sfcLib.interface.encodeFunctionData(
+    //         await expect(
+    //             this.callLibMethod(
     //                 "setGenesisDelegation",
     //                 [delegator.address, 1, 100, 0, 0, 0, 0, 0, 1000]
     //             )
-    //         })).to.be.revertedWith('caller is not the NodeDriverAuth contract');
+    //         ).to.be.revertedWith('caller is not the NodeDriverAuth contract');
     //     });
     // });
     //
@@ -464,44 +366,23 @@ describe('SFC', () => {
     //     const validatorsFixture = async function (this: any) {
     //         const [ validator, delegator, secondDelegator, thirdDelegator ] = await ethers.getSigners();
     //
-    //         // set sufficient balance for new validator
-    //         await fundAccount(validator.address, '1000000');
+    //         await expect(
+    //             this.callLibMethod("createValidator", [ethers.Wallet.createRandom().publicKey], this.validator, '10')
+    //         ).to.be.fulfilled;
     //
-    //         await expect(validator.sendTransaction({
-    //             to: this.sfc,
-    //             value: ethers.parseEther('500000'),
-    //             data: this.sfcLib.interface.encodeFunctionData(
-    //                 "createValidator",
-    //                 [ethers.Wallet.createRandom().publicKey]
-    //             )
-    //         })).to.be.fulfilled;
     //
-    //         await expect(delegator.sendTransaction({
-    //             to: this.sfc,
-    //             value: ethers.parseEther('20'),
-    //             data: this.sfcLib.interface.encodeFunctionData(
-    //                 "delegate",
-    //                 [1]
-    //             )
-    //         })).to.be.fulfilled;
+    //         await expect(
+    //             this.callLibMethod("delegate", [1], this.delegator, '11')
+    //         ).to.be.fulfilled;
     //
-    //         await expect(secondDelegator.sendTransaction({
-    //             to: this.sfc,
-    //             value: ethers.parseEther('30'),
-    //             data: this.sfcLib.interface.encodeFunctionData(
-    //                 "delegate",
-    //                 [1]
-    //             )
-    //         })).to.be.fulfilled;
     //
-    //         await expect(thirdDelegator.sendTransaction({
-    //             to: this.sfc,
-    //             value: ethers.parseEther('50'),
-    //             data: this.sfcLib.interface.encodeFunctionData(
-    //                 "delegate",
-    //                 [1]
-    //             )
-    //         })).to.be.fulfilled;
+    //         await expect(
+    //             this.callLibMethod("delegate", [1], this.secondDelegator, '8')
+    //         ).to.be.fulfilled;
+    //
+    //         await expect(
+    //             this.callLibMethod("delegate", [1], this.thirdDelegator, '8')
+    //         ).to.be.fulfilled;
     //
     //         const validatorStruct = await this.sfc.getValidator(1);
     //
@@ -532,7 +413,7 @@ describe('SFC', () => {
     //         });
     //
     //         it('Should succeed and return validator Received Stake', async function () {
-    //             expect(this.validatorStruct.receivedStake).to.equal(ethers.parseEther('500100'));
+    //             expect(this.validatorStruct.receivedStake).to.equal(ethers.parseEther('37'));
     //         });
     //
     //         it('Should succeed and return validator Created Epoch', async function () {
@@ -568,255 +449,303 @@ describe('SFC', () => {
     //         });
     //     });
     // });
+    //
+    // describe('Methods tests', () => {
+    //     it('Should succeed and check createValidator function', async function () {
+    //         const node = new BlockchainNode(this.sfc);
+    //         const [validator, secondValidator] = await ethers.getSigners();
+    //         const pubkey = ethers.Wallet.createRandom().publicKey;
+    //         const secondPubkey = ethers.Wallet.createRandom().publicKey;
+    //         await this.sfc.enableNonNodeCalls();
+    //
+    //         expect(await this.sfc.lastValidatorID()).to.equal(0);
+    //
+    //         await expect(
+    //             this.callLibMethod("createValidator", [ethers.Wallet.createRandom().publicKey], validator, '0.1')
+    //         ).to.be.revertedWith('insufficient self-stake');
+    //
+    //
+    //         await expect(
+    //             node.handleTx(
+    //                 await this.callLibMethod("createValidator", [pubkey], validator, '0.3175')
+    //             )
+    //         ).to.be.fulfilled;
+    //
+    //         await expect(
+    //             this.callLibMethod("createValidator", [ethers.Wallet.createRandom().publicKey], validator, '0.5')
+    //         ).to.be.revertedWith('validator already exists');
+    //
+    //         await expect(
+    //             node.handleTx(
+    //                 await this.callLibMethod("createValidator", [secondPubkey], secondValidator, '0.5')
+    //             )
+    //         ).to.be.fulfilled;
+    //
+    //         expect(await this.sfc.lastValidatorID()).to.equal(2);
+    //         expect(await this.sfc.totalStake()).to.equal(ethers.parseEther('0.8175'));
+    //
+    //         const firstValidatorID = await this.sfc.getValidatorID(validator);
+    //         const secondValidatorID = await this.sfc.getValidatorID(secondValidator);
+    //         expect(firstValidatorID).to.equal(1);
+    //         expect(secondValidatorID).to.equal(2);
+    //
+    //         expect(await this.sfc.getValidatorPubkey(firstValidatorID)).to.equal(pubkey);
+    //         expect(await this.sfc.getValidatorPubkey(secondValidatorID)).to.equal(secondPubkey);
+    //
+    //         const firstValidatorObj = await this.sfc.getValidator(firstValidatorID);
+    //         const secondValidatorObj = await this.sfc.getValidator(secondValidatorID);
+    //
+    //         // check first validator object
+    //         expect(firstValidatorObj.receivedStake).to.equal(ethers.parseEther('0.3175'));
+    //         expect(firstValidatorObj.createdEpoch).to.equal(1);
+    //         expect(firstValidatorObj.auth).to.equal(validator.address);
+    //         expect(firstValidatorObj.status).to.equal(0);
+    //         expect(firstValidatorObj.deactivatedTime).to.equal(0);
+    //         expect(firstValidatorObj.deactivatedEpoch).to.equal(0);
+    //
+    //         // check second validator object
+    //         expect(secondValidatorObj.receivedStake).to.equal(ethers.parseEther('0.5'));
+    //         expect(secondValidatorObj.createdEpoch).to.equal(1);
+    //         expect(secondValidatorObj.auth).to.equal(secondValidator.address);
+    //         expect(secondValidatorObj.status).to.equal(0);
+    //         expect(secondValidatorObj.deactivatedTime).to.equal(0);
+    //         expect(secondValidatorObj.deactivatedEpoch).to.equal(0);
+    //
+    //         // // check created delegations
+    //         expect(await this.sfc.getStake(validator, firstValidatorID)).to.equal(ethers.parseEther('0.3175'));
+    //         expect(await this.sfc.getStake(secondValidator, secondValidatorID)).to.equal(ethers.parseEther('0.5'));
+    //
+    //         // check fired node-related logs
+    //         expect(node.nextValidatorWeights.size).to.equal(2);
+    //         expect(node.nextValidatorWeights.get(firstValidatorID)).to.equal(ethers.parseEther('0.3175'));
+    //         expect(node.nextValidatorWeights.get(secondValidatorID)).to.equal(ethers.parseEther('0.5'));
+    //     });
+    //
+    //     it('Should succeed and check sealing epoch', async function () {
+    //         const node = new BlockchainNode(this.sfc);
+    //         const [validator, secondValidator, thirdValidator] = await ethers.getSigners();
+    //         await this.sfc.enableNonNodeCalls();
+    //
+    //         await expect(
+    //             node.handleTx(
+    //                 await this.callLibMethod("createValidator", [ethers.Wallet.createRandom().publicKey], validator, '0.3175')
+    //             )
+    //         ).to.be.fulfilled;
+    //
+    //         await expect(
+    //             node.handleTx(
+    //                 await this.callLibMethod("createValidator", [ethers.Wallet.createRandom().publicKey], secondValidator, '0.6825')
+    //             )
+    //         ).to.be.fulfilled;
+    //
+    //         await node.sealEpoch(100);
+    //
+    //         const firstValidatorID = await this.sfc.getValidatorID(validator);
+    //         const secondValidatorID = await this.sfc.getValidatorID(secondValidator);
+    //         expect(firstValidatorID).to.equal(1);
+    //         expect(secondValidatorID).to.equal(2);
+    //
+    //         await expect(
+    //             node.handleTx(
+    //                 await this.callLibMethod("delegate", [1], validator, '0.1')
+    //             )
+    //         ).to.be.fulfilled;
+    //
+    //
+    //         await expect(
+    //             node.handleTx(
+    //                 await this.callLibMethod("createValidator", [ethers.Wallet.createRandom().publicKey], thirdValidator, '0.4')
+    //             )
+    //         ).to.be.fulfilled;
+    //         const thirdValidatorID = await this.sfc.getValidatorID(thirdValidator);
+    //
+    //         // check fired node-related logs
+    //         expect(node.validatorWeights.size).to.equal(2);
+    //         expect(node.validatorWeights.get(firstValidatorID)).to.equal(ethers.parseEther('0.3175'));
+    //         expect(node.validatorWeights.get(secondValidatorID)).to.equal(ethers.parseEther('0.6825'));
+    //         expect(node.nextValidatorWeights.size).to.equal(3);
+    //         expect(node.nextValidatorWeights.get(firstValidatorID)).to.equal(ethers.parseEther('0.4175'));
+    //         expect(node.nextValidatorWeights.get(secondValidatorID)).to.equal(ethers.parseEther('0.6825'));
+    //         expect(node.nextValidatorWeights.get(thirdValidatorID)).to.equal(ethers.parseEther('0.4'));
+    //     });
+    //
+    //     it('Should succeed and balance gas price', async function () {
+    //         const [validator] = await ethers.getSigners();
+    //         await this.sfc.enableNonNodeCalls();
+    //
+    //         await expect(this.constants.updateGasPriceBalancingCounterweight(24 * 60 * 60)).to.be.fulfilled;
+    //         await expect(this.sfc.rebaseTime()).to.be.fulfilled;
+    //
+    //         await expect(
+    //             this.callLibMethod("createValidator", [ethers.Wallet.createRandom().publicKey], validator, '1')
+    //         ).to.be.fulfilled;
+    //
+    //
+    //         await expect(this.constants.updateTargetGasPowerPerSecond(1000)).to.be.fulfilled;
+    //         await expect(this.sfc.sealEpoch([1], [1], [1], [1], 1_000)).to.be.fulfilled;
+    //         await expect(this.sfc.sealEpochValidators([1])).to.be.fulfilled;
+    //
+    //         expect(await this.sfc.minGasPrice()).to.equal(95_000_000_000);
+    //
+    //         await this.sfc.advanceTime(1);
+    //         await expect(this.sfc.sealEpoch([1], [1], [1], [1], 1_000)).to.be.fulfilled;
+    //         await expect(this.sfc.sealEpochValidators([1])).to.be.fulfilled;
+    //         expect(await this.sfc.minGasPrice()).to.equal(94_999_998_901);
+    //
+    //         await this.sfc.advanceTime(2);
+    //         await expect(this.sfc.sealEpoch([1], [1], [1], [1], 2_000)).to.be.fulfilled;
+    //         await expect(this.sfc.sealEpochValidators([1])).to.be.fulfilled;
+    //         expect(await this.sfc.minGasPrice()).to.equal(94_999_997_802);
+    //
+    //         await this.sfc.advanceTime(1_000);
+    //         await expect(this.sfc.sealEpoch([1], [1], [1], [1], 1_000_000)).to.be.fulfilled;
+    //         await expect(this.sfc.sealEpochValidators([1])).to.be.fulfilled;
+    //         expect(await this.sfc.minGasPrice()).to.equal(94_999_996_715);
+    //
+    //         await this.sfc.advanceTime(1_000);
+    //         await expect(this.sfc.sealEpoch([1], [1], [1], [1], 666_666)).to.be.fulfilled;
+    //         await expect(this.sfc.sealEpochValidators([1])).to.be.fulfilled;
+    //         expect(await this.sfc.minGasPrice()).to.equal(94_637_676_437);
+    //
+    //         await this.sfc.advanceTime(1_000);
+    //         await expect(this.sfc.sealEpoch([1], [1], [1], [1], 1_500_000)).to.be.fulfilled;
+    //         await expect(this.sfc.sealEpochValidators([1])).to.be.fulfilled;
+    //         expect(await this.sfc.minGasPrice()).to.equal(95_179_080_284);
+    //
+    //         await this.sfc.advanceTime(1);
+    //         await expect(this.sfc.sealEpoch([1], [1], [1], [1], 666)).to.be.fulfilled;
+    //         await expect(this.sfc.sealEpochValidators([1])).to.be.fulfilled;
+    //         expect(await this.sfc.minGasPrice()).to.equal(95_178_711_617);
+    //
+    //         await this.sfc.advanceTime(1);
+    //         await expect(this.sfc.sealEpoch([1], [1], [1], [1], 1_500)).to.be.fulfilled;
+    //         await expect(this.sfc.sealEpochValidators([1])).to.be.fulfilled;
+    //         expect(await this.sfc.minGasPrice()).to.equal(95_179_260_762);
+    //
+    //         await this.sfc.advanceTime(1_000);
+    //         await expect(this.sfc.sealEpoch([1], [1], [1], [1], 10_000_000_000)).to.be.fulfilled;
+    //         await expect(this.sfc.sealEpochValidators([1])).to.be.fulfilled;
+    //         expect(await this.sfc.minGasPrice()).to.equal(99_938_223_800);
+    //
+    //         await this.sfc.advanceTime(10_000);
+    //         await expect(this.sfc.sealEpoch([1], [1], [1], [1], 0)).to.be.fulfilled;
+    //         await expect(this.sfc.sealEpochValidators([1])).to.be.fulfilled;
+    //         expect(await this.sfc.minGasPrice()).to.equal(94_941_312_610);
+    //
+    //         await this.sfc.advanceTime(100);
+    //         await expect(this.sfc.sealEpoch([1], [1], [1], [1], 200_000)).to.be.fulfilled;
+    //         await expect(this.sfc.sealEpochValidators([1])).to.be.fulfilled;
+    //         expect(await this.sfc.minGasPrice()).to.equal(95_051_069_157);
+    //
+    //         await this.sfc.advanceTime(100);
+    //         await expect(this.sfc.sealEpoch([1], [1], [1], [1], 50_000)).to.be.fulfilled;
+    //         await expect(this.sfc.sealEpochValidators([1])).to.be.fulfilled;
+    //         expect(await this.sfc.minGasPrice()).to.equal(94_996_125_793);
+    //     });
+    // });
 
-    describe('Methods tests', () => {
-        // it('Should succeed and check createValidator function', async function () {
-        //     const node = new BlockchainNode(this.sfc);
-        //     const [validator, secondValidator] = await ethers.getSigners();
-        //     const pubkey = ethers.Wallet.createRandom().publicKey;
-        //     const secondPubkey = ethers.Wallet.createRandom().publicKey;
-        //     await fundAccount(validator.address, '1000000');
-        //     await fundAccount(secondValidator.address, '1000000');
-        //     await this.sfc.enableNonNodeCalls();
-        //
-        //     expect(await this.sfc.lastValidatorID()).to.equal(0);
-        //     await expect(
-        //         validator.sendTransaction({
-        //             to: this.sfc,
-        //             value: ethers.parseEther('100'),
-        //             data: this.sfcLib.interface.encodeFunctionData(
-        //                 "createValidator",
-        //                 [ethers.Wallet.createRandom().publicKey]
-        //             )
-        //         })
-        //     ).to.be.revertedWith('insufficient self-stake');
-        //
-        //     await node.handleTx(
-        //         await validator.sendTransaction({
-        //             to: this.sfc,
-        //             value: ethers.parseEther('500000'),
-        //             data: this.sfcLib.interface.encodeFunctionData(
-        //                 "createValidator",
-        //                 [pubkey]
-        //             )
-        //         })
-        //     );
-        //
-        //     await expect(
-        //         validator.sendTransaction({
-        //             to: this.sfc,
-        //             value: ethers.parseEther('500000'),
-        //             data: this.sfcLib.interface.encodeFunctionData(
-        //                 "createValidator",
-        //                 [ethers.Wallet.createRandom().publicKey]
-        //             )
-        //         })
-        //     ).to.be.revertedWith('validator already exists');
-        //
-        //     await node.handleTx(
-        //         await secondValidator.sendTransaction({
-        //             to: this.sfc,
-        //             value: ethers.parseEther('700000'),
-        //             data: this.sfcLib.interface.encodeFunctionData(
-        //                 "createValidator",
-        //                 [secondPubkey]
-        //             )
-        //         })
-        //     );
-        //
-        //     expect(await this.sfc.lastValidatorID()).to.equal(2);
-        //     expect(await this.sfc.totalStake()).to.equal(ethers.parseEther('1200000'));
-        //
-        //     const firstValidatorID = await this.sfc.getValidatorID(validator);
-        //     const secondValidatorID = await this.sfc.getValidatorID(secondValidator);
-        //     expect(firstValidatorID).to.equal(1);
-        //     expect(secondValidatorID).to.equal(2);
-        //
-        //     expect(await this.sfc.getValidatorPubkey(firstValidatorID)).to.equal(pubkey);
-        //     expect(await this.sfc.getValidatorPubkey(secondValidatorID)).to.equal(secondPubkey);
-        //
-        //     const firstValidatorObj = await this.sfc.getValidator(firstValidatorID);
-        //     const secondValidatorObj = await this.sfc.getValidator(secondValidatorID);
-        //
-        //     // check first validator object
-        //     expect(firstValidatorObj.receivedStake).to.equal(ethers.parseEther('500000'));
-        //     expect(firstValidatorObj.createdEpoch).to.equal(1);
-        //     expect(firstValidatorObj.auth).to.equal(validator.address);
-        //     expect(firstValidatorObj.status).to.equal(0);
-        //     expect(firstValidatorObj.deactivatedTime).to.equal(0);
-        //     expect(firstValidatorObj.deactivatedEpoch).to.equal(0);
-        //
-        //     // check second validator object
-        //     expect(secondValidatorObj.receivedStake).to.equal(ethers.parseEther('700000'));
-        //     expect(secondValidatorObj.createdEpoch).to.equal(1);
-        //     expect(secondValidatorObj.auth).to.equal(secondValidator.address);
-        //     expect(secondValidatorObj.status).to.equal(0);
-        //     expect(secondValidatorObj.deactivatedTime).to.equal(0);
-        //     expect(secondValidatorObj.deactivatedEpoch).to.equal(0);
-        //
-        //     // // check created delegations
-        //     expect(await this.sfc.getStake(validator, firstValidatorID)).to.equal(ethers.parseEther('500000'));
-        //     expect(await this.sfc.getStake(secondValidator, secondValidatorID)).to.equal(ethers.parseEther('700000'));
-        //
-        //     // check fired node-related logs
-        //     expect(node.nextValidatorWeights.size).to.equal(2);
-        //     expect(node.nextValidatorWeights.get(firstValidatorID)).to.equal(ethers.parseEther('500000'));
-        //     expect(node.nextValidatorWeights.get(secondValidatorID)).to.equal(ethers.parseEther('700000'));
-        // });
-        //
-        // it('Should succeed and check sealing epoch', async function () {
-        //     const node = new BlockchainNode(this.sfc);
-        //     const [validator, secondValidator, thirdValidator] = await ethers.getSigners();
-        //     await fundAccount(validator.address, '1000000');
-        //     await fundAccount(secondValidator.address, '1000000');
-        //     await fundAccount(thirdValidator.address, '1000000');
-        //     await this.sfc.enableNonNodeCalls();
-        //
-        //     await expect(
-        //         node.handleTx(
-        //             await validator.sendTransaction({
-        //                 to: this.sfc,
-        //                 value: ethers.parseEther('500000'),
-        //                 data: this.sfcLib.interface.encodeFunctionData(
-        //                     "createValidator",
-        //                     [ethers.Wallet.createRandom().publicKey]
-        //                 )
-        //             })
-        //         )
-        //     ).to.be.fulfilled;
-        //
-        //     await expect(
-        //         node.handleTx(
-        //             await secondValidator.sendTransaction({
-        //                 to: this.sfc,
-        //                 value: ethers.parseEther('700000'),
-        //                 data: this.sfcLib.interface.encodeFunctionData(
-        //                     "createValidator",
-        //                     [ethers.Wallet.createRandom().publicKey]
-        //                 )
-        //             })
-        //         )
-        //     ).to.be.fulfilled;
-        //
-        //     await node.sealEpoch(100);
-        //
-        //     const firstValidatorID = await this.sfc.getValidatorID(validator);
-        //     const secondValidatorID = await this.sfc.getValidatorID(secondValidator);
-        //     expect(firstValidatorID).to.equal(1);
-        //     expect(secondValidatorID).to.equal(2);
-        //
-        //     await node.handleTx(
-        //         await validator.sendTransaction({
-        //             to: this.sfc,
-        //             value: ethers.parseEther('30'),
-        //             data: this.sfcLib.interface.encodeFunctionData(
-        //                 "delegate",
-        //                 [1]
-        //             )
-        //         })
-        //     )
-        //
-        //     await node.handleTx(
-        //         await thirdValidator.sendTransaction({
-        //             to: this.sfc,
-        //             value: ethers.parseEther('600000'),
-        //             data: this.sfcLib.interface.encodeFunctionData(
-        //                 "createValidator",
-        //                 [ethers.Wallet.createRandom().publicKey]
-        //             )
-        //         })
-        //     );
-        //     const thirdValidatorID = await this.sfc.getValidatorID(thirdValidator);
-        //
-        //     // check fired node-related logs
-        //     expect(node.validatorWeights.size).to.equal(2);
-        //     expect(node.validatorWeights.get(firstValidatorID)).to.equal(ethers.parseEther('500000'));
-        //     expect(node.validatorWeights.get(secondValidatorID)).to.equal(ethers.parseEther('700000'));
-        //     expect(node.nextValidatorWeights.size).to.equal(3);
-        //     expect(node.nextValidatorWeights.get(firstValidatorID)).to.equal(ethers.parseEther('500030'));
-        //     expect(node.nextValidatorWeights.get(secondValidatorID)).to.equal(ethers.parseEther('700000'));
-        //     expect(node.nextValidatorWeights.get(thirdValidatorID)).to.equal(ethers.parseEther('600000'));
-        // });
+    describe('Staking / Sealed Epoch functions', () => {
+        const validatorsFixture = async function (this: any) {
+            const [ validator, secondValidator, thirdValidator, delegator, secondDelegator ] = await ethers.getSigners();
+            const blockchainNode = new BlockchainNode(this.sfc);
 
-        it('Should succeed and balance gas price', async function () {
-            const [validator] = await ethers.getSigners();
-            await fundAccount(validator.address, '1000000');
-            await this.sfc.enableNonNodeCalls();
-
-            await expect(this.constants.updateGasPriceBalancingCounterweight(24 * 60 * 60)).to.be.fulfilled;
             await expect(this.sfc.rebaseTime()).to.be.fulfilled;
+            await expect(this.sfc.enableNonNodeCalls()).to.be.fulfilled;
 
-            await expect(
-                validator.sendTransaction({
-                    to: this.sfc,
-                    value: ethers.parseEther('500000'),
-                    data: this.sfcLib.interface.encodeFunctionData(
-                        "createValidator",
-                        [ethers.Wallet.createRandom().publicKey]
-                    )
-                })
-            ).to.be.fulfilled;
+            await expect(blockchainNode.handleTx(
+                    await this.callLibMethod("createValidator", [ethers.Wallet.createRandom().publicKey], validator, '0.4')
+            )).to.be.fulfilled;
 
-            await expect(this.constants.updateTargetGasPowerPerSecond(1_000_000)).to.be.fulfilled;
-            await expect(this.sfc.sealEpoch([1], [1], [1], [1], 1_000)).to.be.fulfilled;
-            await expect(this.sfc.sealEpochValidators([1])).to.be.fulfilled;
+            await expect(blockchainNode.handleTx(
+                await this.callLibMethod("createValidator", [ethers.Wallet.createRandom().publicKey], secondValidator, '0.8')
+            )).to.be.fulfilled;
 
-            expect(await this.sfc.minGasPrice()).to.equal(95_000_000_000);
+            await expect(blockchainNode.handleTx(
+                await this.callLibMethod("createValidator", [ethers.Wallet.createRandom().publicKey], thirdValidator, '0.8')
+            )).to.be.fulfilled;
 
-            await this.sfc.advanceTime(1);
-            await expect(this.sfc.sealEpoch([1], [1], [1], [1], 1_000)).to.be.fulfilled;
-            await expect(this.sfc.sealEpochValidators([1])).to.be.fulfilled;
-            expect(await this.sfc.minGasPrice()).to.equal(94_998_901_575);
+            await expect(blockchainNode.handleTx(
+                await this.callLibMethod("delegate", [1], validator, '0.4')
+            )).to.be.fulfilled;
 
-            await this.sfc.advanceTime(2);
-            await expect(this.sfc.sealEpoch([1], [1], [1], [1], 2_000)).to.be.fulfilled;
-            await expect(this.sfc.sealEpochValidators([1])).to.be.fulfilled;
-            expect(await this.sfc.minGasPrice()).to.equal(94_996_704_776);
+            await expect(blockchainNode.handleTx(
+                await this.callLibMethod("delegate", [1], delegator, '0.4')
+            )).to.be.fulfilled;
 
-            await this.sfc.advanceTime(1_000);
-            await expect(this.sfc.sealEpoch([1], [1], [1], [1], 1_000_000)).to.be.fulfilled;
-            await expect(this.sfc.sealEpochValidators([1])).to.be.fulfilled;
-            expect(await this.sfc.minGasPrice()).to.equal(93_910_872_875);
+            await expect(blockchainNode.handleTx(
+                await this.callLibMethod("delegate", [2], secondDelegator, '0.4')
+            )).to.be.fulfilled;
 
-            await this.sfc.advanceTime(1_000);
-            await expect(this.sfc.sealEpoch([1], [1], [1], [1], 666_666)).to.be.fulfilled;
-            await expect(this.sfc.sealEpochValidators([1])).to.be.fulfilled;
-            expect(await this.sfc.minGasPrice()).to.equal(92_837_094_091);
+            await expect(blockchainNode.sealEpoch(0)).to.be.fulfilled;
 
-            await this.sfc.advanceTime(1_000);
-            await expect(this.sfc.sealEpoch([1], [1], [1], [1], 1_500_000)).to.be.fulfilled;
-            await expect(this.sfc.sealEpochValidators([1])).to.be.fulfilled;
-            expect(await this.sfc.minGasPrice()).to.equal(91_776_478_090);
+            return {
+                validator,
+                secondValidator,
+                thirdValidator,
+                delegator,
+                secondDelegator,
+                blockchainNode
+            }
+        }
 
-            await this.sfc.advanceTime(1);
-            await expect(this.sfc.sealEpoch([1], [1], [1], [1], 666)).to.be.fulfilled;
-            await expect(this.sfc.sealEpochValidators([1])).to.be.fulfilled;
-            expect(await this.sfc.minGasPrice()).to.equal(91_775_416_581);
+        beforeEach(async function () {
+            return Object.assign(this, await loadFixture(validatorsFixture.bind(this)));
+        });
 
-            await this.sfc.advanceTime(1);
-            await expect(this.sfc.sealEpoch([1], [1], [1], [1], 1_500)).to.be.fulfilled;
-            await expect(this.sfc.sealEpochValidators([1])).to.be.fulfilled;
-            expect(await this.sfc.minGasPrice()).to.equal(91_774_355_971);
+        it('Should succeed and return claimed Rewards until Epoch', async function () {
+            await expect(this.constants.updateBaseRewardPerSecond(1)).to.be.fulfilled;
+            await expect(this.blockchainNode.sealEpoch(60 * 60 * 24)).to.be.fulfilled;
+            await expect(this.blockchainNode.sealEpoch(60 * 60 * 24)).to.be.fulfilled;
+            expect(await this.sfc.stashedRewardsUntilEpoch(this.delegator, 1)).to.equal(0);
+            await expect(this.callLibMethod("claimRewards", [1], this.delegator)).to.be.fulfilled;
+            expect(await this.sfc.stashedRewardsUntilEpoch(this.delegator, 1)).to.equal(await this.sfc.currentSealedEpoch());
+        });
 
-            await this.sfc.advanceTime(1_000);
-            await expect(this.sfc.sealEpoch([1], [1], [1], [1], 10_000_000_000)).to.be.fulfilled;
-            await expect(this.sfc.sealEpochValidators([1])).to.be.fulfilled;
-            expect(await this.sfc.minGasPrice()).to.equal(96_363_073_769);
+        it('Should succeed and check pending rewards of delegators', async function () {
+            await expect(this.constants.updateBaseRewardPerSecond(1)).to.be.fulfilled;
+            expect(await this.readLibData("pendingRewards", [this.validator.address, 1])).to.equal(0);
+            expect(await this.readLibData("pendingRewards", [this.delegator.address, 1])).to.equal(0);
+            await expect(this.blockchainNode.sealEpoch(60 * 60 * 24)).to.be.fulfilled;
+            expect(await this.readLibData("pendingRewards", [this.validator.address, 1])).to.equal(6_966);
+            expect(await this.readLibData("pendingRewards", [this.delegator.address, 1])).to.equal(2_754);
+        });
 
-            await this.sfc.advanceTime(10_000);
-            await expect(this.sfc.sealEpoch([1], [1], [1], [1], 0)).to.be.fulfilled;
-            await expect(this.sfc.sealEpochValidators([1])).to.be.fulfilled;
-            expect(await this.sfc.minGasPrice()).to.equal(91_544_920_080);
+        it('Should succeed and check if pending rewards have been increased after sealing epoch', async function () {
+            await expect(this.constants.updateBaseRewardPerSecond(1)).to.be.fulfilled;
+            await expect(this.blockchainNode.sealEpoch(60 * 60 * 24)).to.be.fulfilled;
+            expect(await this.readLibData("pendingRewards", [this.validator.address, 1])).to.equal(6_966);
+            expect(await this.readLibData("pendingRewards", [this.delegator.address, 1])).to.equal(2_754);
+            await expect(this.blockchainNode.sealEpoch(60 * 60 * 24)).to.be.fulfilled;
+            expect(await this.readLibData("pendingRewards", [this.validator.address, 1])).to.equal(13_932);
+            expect(await this.readLibData("pendingRewards", [this.delegator.address, 1])).to.equal(5_508);
+        });
 
-            await this.sfc.advanceTime(100);
-            await expect(this.sfc.sealEpoch([1], [1], [1], [1], 200_000)).to.be.fulfilled;
-            await expect(this.sfc.sealEpochValidators([1])).to.be.fulfilled;
-            expect(await this.sfc.minGasPrice()).to.equal(91_439_299_467);
+        it('Should succeed and increase balances after claiming rewards', async function () {
+            await expect(this.constants.updateBaseRewardPerSecond(100_000_000_000_000)).to.be.fulfilled;
+            await expect(this.blockchainNode.sealEpoch(0)).to.be.fulfilled;
+            await expect(this.blockchainNode.sealEpoch(60 * 60 * 24)).to.be.fulfilled;
+            const delegatorPendingRewards = await this.readLibData("pendingRewards", [this.delegator.address, 1])
+            expect(delegatorPendingRewards).to.be.equal(ethers.parseEther('0.2754'));
+            const delegatorBalance = await ethers.provider.getBalance(this.delegator.address);
+            await expect(this.callLibMethod("claimRewards", [1], this.delegator)).to.be.fulfilled;
+            const delegatorNewBalance = await ethers.provider.getBalance(this.delegator.address);
+            expect(delegatorBalance + delegatorPendingRewards).to.be.above(delegatorNewBalance);
+            expect(delegatorBalance + delegatorPendingRewards).to.be.below(delegatorNewBalance + ethers.parseEther('0.01'));
+        });
 
-            await this.sfc.advanceTime(100);
-            await expect(this.sfc.sealEpoch([1], [1], [1], [1], 50_000)).to.be.fulfilled;
-            await expect(this.sfc.sealEpochValidators([1])).to.be.fulfilled;
-            expect(await this.sfc.minGasPrice()).to.equal(91_333_642_149);
+        it('Should succeed and increase stake after restaking rewards', async function () {
+            await expect(this.constants.updateBaseRewardPerSecond(1)).to.be.fulfilled;
+            await expect(this.blockchainNode.sealEpoch(0)).to.be.fulfilled;
+            await expect(this.blockchainNode.sealEpoch(60 * 60 * 24)).to.be.fulfilled;
+            const delegatorPendingRewards = await this.readLibData("pendingRewards", [this.delegator.address, 1])
+            expect(delegatorPendingRewards).to.be.equal(2754);
+            const delegatorStake = await this.sfc.getStake(this.delegator, 1);
+            const delegatorLockupInfo = await this.sfc.getLockupInfo(this.delegator, 1);
+            await expect(this.callLibMethod("restakeRewards", [1], this.delegator)).to.be.fulfilled;
+            const delegatorNewStake = await this.sfc.getStake(this.delegator, 1);
+            const delegatorNewLockupInfo = await this.sfc.getLockupInfo(this.delegator, 1);
+            expect(delegatorNewStake).to.equal(delegatorStake + delegatorPendingRewards);
+            expect(delegatorNewLockupInfo.lockedStake).to.equal(delegatorLockupInfo.lockedStake);
         });
     });
 });
@@ -874,75 +803,7 @@ describe('SFC', () => {
 //     });
 //
 //     describe('Staking / Sealed Epoch functions', () => {
-//         it('Should return claimed Rewards until Epoch', async () => {
-//             await this.consts.updateBaseRewardPerSecond(new BN('1'));
-//             await sealEpoch(this.sfc, (new BN(60 * 60 * 24)).toString());
-//             await sealEpoch(this.sfc, (new BN(60 * 60 * 24)).toString());
-//             expect(await this.sfc.stashedRewardsUntilEpoch(firstDelegator, 1)).to.bignumber.equal(new BN(0));
-//             await this.sfc.claimRewards(1, { from: firstDelegator });
-//             expect(await this.sfc.stashedRewardsUntilEpoch(firstDelegator, 1)).to.bignumber.equal(await this.sfc.currentSealedEpoch());
-//         });
-//
-//         it('Check pending Rewards of delegators', async () => {
-//             await this.consts.updateBaseRewardPerSecond(new BN('1'));
-//
-//             expect((await this.sfc.pendingRewards(firstValidator, firstValidatorID)).toString()).to.equals('0');
-//             expect((await this.sfc.pendingRewards(firstDelegator, firstValidatorID)).toString()).to.equals('0');
-//
-//             await sealEpoch(this.sfc, (new BN(60 * 60 * 24)).toString());
-//
-//             expect((await this.sfc.pendingRewards(firstValidator, firstValidatorID)).toString()).to.equals('6966');
-//             expect((await this.sfc.pendingRewards(firstDelegator, firstValidatorID)).toString()).to.equals('2754');
-//         });
-//
-//         it('Check if pending Rewards have been increased after sealing Epoch', async () => {
-//             await this.consts.updateBaseRewardPerSecond(new BN('1'));
-//
-//             await sealEpoch(this.sfc, (new BN(60 * 60 * 24)).toString());
-//             expect((await this.sfc.pendingRewards(firstValidator, firstValidatorID)).toString()).to.equals('6966');
-//             expect((await this.sfc.pendingRewards(firstDelegator, firstValidatorID)).toString()).to.equals('2754');
-//
-//             await sealEpoch(this.sfc, (new BN(60 * 60 * 24)).toString());
-//             expect((await this.sfc.pendingRewards(firstValidator, firstValidatorID)).toString()).to.equals('13932');
-//             expect((await this.sfc.pendingRewards(firstDelegator, firstValidatorID)).toString()).to.equals('5508');
-//         });
-//
-//         it('Should increase balances after claiming Rewards', async () => {
-//             await this.consts.updateBaseRewardPerSecond(new BN('100000000000000'));
-//
-//             await sealEpoch(this.sfc, (new BN(0)).toString());
-//             await sealEpoch(this.sfc, (new BN(60 * 60 * 24)).toString());
-//
-//             const firstDelegatorPendingRewards = await this.sfc.pendingRewards(firstDelegator, firstValidatorID);
-//             expect(firstDelegatorPendingRewards).to.be.bignumber.equal(amount18('0.2754'));
-//             const firstDelegatorBalance = new BN(await web3.eth.getBalance(firstDelegator));
-//
-//             await this.sfc.claimRewards(1, { from: firstDelegator });
-//
-//             const delegatorBalance = new BN(await web3.eth.getBalance(firstDelegator));
-//             expect(firstDelegatorBalance.add(firstDelegatorPendingRewards)).to.be.bignumber.above(delegatorBalance);
-//             expect(firstDelegatorBalance.add(firstDelegatorPendingRewards)).to.be.bignumber.below(delegatorBalance.add(amount18('0.01')));
-//         });
-//
-//         it('Should increase stake after restaking Rewards', async () => {
-//             await this.consts.updateBaseRewardPerSecond(new BN('1'));
-//
-//             await sealEpoch(this.sfc, (new BN(0)).toString());
-//             await sealEpoch(this.sfc, (new BN(60 * 60 * 24)).toString());
-//
-//             const firstDelegatorPendingRewards = await this.sfc.pendingRewards(firstDelegator, firstValidatorID);
-//             expect(firstDelegatorPendingRewards).to.be.bignumber.equal(new BN('2754'));
-//             const firstDelegatorStake = await this.sfc.getStake(firstDelegator, firstValidatorID);
-//             const firstDelegatorLockupInfo = await this.sfc.getLockupInfo(firstDelegator, firstValidatorID);
-//
-//             await this.sfc.restakeRewards(1, { from: firstDelegator });
-//
-//             const delegatorStake = await this.sfc.getStake(firstDelegator, firstValidatorID);
-//             const delegatorLockupInfo = await this.sfc.getLockupInfo(firstDelegator, firstValidatorID);
-//             expect(delegatorStake).to.be.bignumber.equal(firstDelegatorStake.add(firstDelegatorPendingRewards));
-//             expect(delegatorLockupInfo.lockedStake).to.be.bignumber.equal(firstDelegatorLockupInfo.lockedStake);
-//         });
-//
+
 //         it('Should increase locked stake after restaking Rewards', async () => {
 //             await this.sfc.lockStake(firstValidatorID, new BN(86400 * 219 + 10), amount18('0.2'), {
 //                 from: firstValidator,

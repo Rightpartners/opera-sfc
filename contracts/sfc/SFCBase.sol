@@ -41,7 +41,7 @@ contract SFCBase is SFCState {
             return 0;
         }
         uint256 totalReward = epochDuration * _baseRewardPerSecond;
-        return totalReward * baseRewardWeight /totalBaseRewardWeight;
+        return totalReward * baseRewardWeight / totalBaseRewardWeight;
     }
 
     function _mintNativeToken(uint256 amount) internal {
@@ -68,7 +68,7 @@ contract SFCBase is SFCState {
         if (lockupDuration != 0) {
             uint256 maxLockupExtraRatio = Decimal.unit() - unlockedRewardRatio;
             uint256 lockupExtraRatio = maxLockupExtraRatio * lockupDuration / c.maxLockupDuration();
-            uint256 totalScaledReward = fullReward * unlockedRewardRatio + lockupExtraRatio / Decimal.unit();
+            uint256 totalScaledReward = fullReward * (unlockedRewardRatio + lockupExtraRatio) / Decimal.unit();
             reward.lockupBaseReward = fullReward * unlockedRewardRatio / Decimal.unit();
             reward.lockupExtraReward = totalScaledReward - reward.lockupBaseReward;
         } else {
