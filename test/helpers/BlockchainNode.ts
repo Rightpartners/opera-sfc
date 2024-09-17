@@ -1,4 +1,4 @@
-import {UnitTestSFC} from "../../typechain-types";
+import {SFCUnitTestI} from "../../typechain-types";
 import {TransactionResponse} from "ethers";
 import {ethers} from "hardhat";
 
@@ -17,11 +17,11 @@ class ValidatorMetrics {
 }
 
 class BlockchainNode {
-    public readonly sfc: UnitTestSFC;
+    public readonly sfc: SFCUnitTestI;
     public validatorWeights: Map<number, bigint>;
     public nextValidatorWeights: Map<number, bigint>;
 
-    constructor(sfc: UnitTestSFC) {
+    constructor(sfc: SFCUnitTestI) {
         this.sfc = sfc;
         this.validatorWeights = new Map();
         this.nextValidatorWeights = new Map();
@@ -70,4 +70,4 @@ class BlockchainNode {
     }
 }
 
-export {BlockchainNode};
+export {BlockchainNode, ValidatorMetrics};
