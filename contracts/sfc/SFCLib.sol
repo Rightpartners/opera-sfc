@@ -458,7 +458,7 @@ contract SFCLib is SFCBase {
             if (penalty != 0) {
                 penalties.push(Penalty(penalty, ld.endTime));
                 require(penalties.length <= 30, "too many ongoing relocks");
-                require(amount > ld.lockedStake / 100 || penalties.length <= 3 || endTime >= ld.endTime + 14 * 24 * 60 * 60, "too frequent relocks (github.com/Fantom-foundation/opera-sfc/wiki/Lockup-calls-reference#re-lock-stake)");
+                require(amount > ld.lockedStake / 100 || penalties.length <= 3 || endTime >= ld.endTime + 14 * 24 * 60 * 60, "too frequent relocks");
             }
         }
 
