@@ -4,7 +4,7 @@ all: build
 .PHONY: build
 build:
 	docker run --rm --user $$(id -u):$$(id -g) -v $(PWD):/src -w /src node:20.17.0 bash -c \
-	    'export NPM_CONFIG_PREFIX=~; npm install --no-save; npm run build'
+	    'export NPM_CONFIG_PREFIX=~; npm install --no-save; npx hardhat compile'
 
 .PHONY: checksum
 checksum:
@@ -13,5 +13,5 @@ checksum:
 .PHONY: test
 test:
 	docker run --rm --user $$(id -u):$$(id -g) -v $(PWD):/src -w /src node:20.17.0 bash -c \
-	    'export NPM_CONFIG_PREFIX=~; npm install --no-save npm run test'
+	    'export NPM_CONFIG_PREFIX=~; npm install --no-save; npx hardhat test'
 
