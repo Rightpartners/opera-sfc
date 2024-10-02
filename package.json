@@ -9,16 +9,16 @@
     "url": "https://github.com/Fantom-foundation/opera-sfc.git"
   },
   "scripts": {
-    "lint:js": "eslint \"test/*.js\"",
-    "lint:js-fix": "eslint \"test/*.js\" --fix",
+    "compile": "hardhat compile",
+    "lint:js": "prettier --log-level warn '**/*.{js,ts}' --check && eslint \"test/*.ts\"",
+    "lint:js-fix": "prettier --log-level warn '**/*.{js,ts}' --write && eslint \"test/*.ts\" --fix",
     "lint": "npm run lint:sol",
     "lint:sol": "solhint \"contracts/**/*.sol\"",
-    "build": "truffle build",
-    "test": "truffle test",
-    "truffle": "truffle",
-    "flatten": "rm -rf contracts/Flattened.sol && truffle-flattener contracts/sfc/SFC.sol >> contracts/Flattened.sol"
+    "gas-report": "env ENABLE_GAS_REPORT=true npm run test",
+    "test": "hardhat test"
   },
   "devDependencies": {
+    "@eslint/js": "^9.11.1",
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.7",
     "@nomicfoundation/hardhat-ethers": "^3.0.8",
     "@nomicfoundation/hardhat-network-helpers": "^1.0.11",
@@ -26,15 +26,20 @@
     "@typechain/ethers-v6": "^0.5.1",
     "@typechain/hardhat": "^9.1.0",
     "@types/chai": "^4.3.19",
+    "@types/eslint__js": "^8.42.3",
     "@types/mocha": "^10.0.7",
-    "eslint": "^9.10.0",
-    "hardhat": "^2.22.10",
+    "eslint": "^9.11.1",
+    "eslint-config-prettier": "^9.1.0",
+    "hardhat": "^2.22.12",
     "hardhat-contract-sizer": "^2.10.0",
+    "prettier": "^3.3.3",
+    "prettier-plugin-solidity": "^1.4.1",
     "solhint": "^5.0.3",
     "solidity-coverage": "^0.8.13",
     "ts-node": "^10.9.2",
     "typechain": "^8.3.2",
-    "typescript": "^5.6.2"
+    "typescript": "^5.6.2",
+    "typescript-eslint": "^8.8.0"
   },
   "dependencies": {
     "dotenv": "^16.0.3"

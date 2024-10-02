@@ -6,8 +6,8 @@ import {
     NetworkInitializer,
     NodeDriver,
     NodeDriverAuth,
-    SFCI,
-    SFCLib, UnitTestSFC
+    SFCLib,
+    UnitTestSFC
 } from "../typechain-types";
 
 describe('NodeDriver', () => {

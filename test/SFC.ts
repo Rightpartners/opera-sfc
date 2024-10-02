@@ -10,7 +10,7 @@ import {
     UnitTestConstantsManager,
     UnitTestNetworkInitializer,
 } from "../typechain-types";
-import {beforeEach} from "mocha";
+import {beforeEach, Context} from "mocha";
 import {BlockchainNode, ValidatorMetrics} from "./helpers/BlockchainNode";
 
 describe('SFC', () => {
@@ -78,13 +78,13 @@ describe('SFC', () => {
     describe('Constants', () => {
         it('Should succeed and return now()', async function () {
             const block = await ethers.provider.getBlock('latest');
-            expect(block).to.not.be.null;
+            expect(block).to.not.be.equal(null);
             expect(await this.sfc.getBlockTime()).to.be.within(block!.timestamp - 100, block!.timestamp + 100);
         });
 
         it('Should succeed and return getTime()', async function () {
             const block = await ethers.provider.getBlock('latest');
-            expect(block).to.not.be.null;
+            expect(block).to.not.be.equal(null);
             expect(await this.sfc.getTime()).to.be.within(block!.timestamp - 100, block!.timestamp + 100);
         });
 
@@ -238,8 +238,8 @@ describe('SFC', () => {
         });
 
         it('Should succeed and return true if the caller is the owner of the contract', async function () {
-            expect(await this.sfc.isOwner()).to.be.true;
-            expect(await this.sfc.connect(this.user).isOwner()).to.be.false;
+            expect(await this.sfc.isOwner()).to.equal(true);
+            expect(await this.sfc.connect(this.user).isOwner()).to.equal(false);
         });
 
         it('Should succeed and return address(0) if owner leaves the contract without owner', async function () {
@@ -343,7 +343,7 @@ describe('SFC', () => {
 
             it('Should succeed and return validator Created Time', async function () {
                 const block = await ethers.provider.getBlock('latest');
-                expect(block).to.not.be.null;
+                expect(block).to.not.equal(null);
                 expect(this.validatorStruct.createdTime).to.be.within(block!.timestamp - 5, block!.timestamp + 5);
             });
 
@@ -547,7 +547,7 @@ describe('SFC', () => {
     });
 
     describe('Staking / Sealed Epoch functions', () => {
-        const validatorsFixture = async function (this: any) {
+        const validatorsFixture = async function (this: Context) {
             const [ validator, secondValidator, thirdValidator, delegator, secondDelegator ] = await ethers.getSigners();
             const blockchainNode = new BlockchainNode(this.sfc);
 
@@ -623,7 +623,7 @@ describe('SFC', () => {
         await this.blockchainNode.sealEpoch(0);
         await this.blockchainNode.sealEpoch(60 * 60 * 24);
         const delegatorPendingRewards = await this.sfc.pendingRewards(this.delegator, 1);
-        expect(delegatorPendingRewards).to.be.equal(ethers.parseEther('0.2754'));
+        expect(delegatorPendingRewards).to.equal(ethers.parseEther('0.2754'));
         const delegatorBalance = await ethers.provider.getBalance(this.delegator.address);
         await this.sfc.connect(this.delegator).claimRewards(this.validatorId);
         const delegatorNewBalance = await ethers.provider.getBalance(this.delegator.address);
@@ -636,7 +636,7 @@ describe('SFC', () => {
         await this.blockchainNode.sealEpoch(0);
         await this.blockchainNode.sealEpoch(60 * 60 * 24);
         const delegatorPendingRewards = await this.sfc.pendingRewards(this.delegator, 1);
-        expect(delegatorPendingRewards).to.be.equal(2754);
+        expect(delegatorPendingRewards).to.equal(2754);
         const delegatorStake = await this.sfc.getStake(this.delegator, this.validatorId);
         const delegatorLockupInfo = await this.sfc.getLockupInfo(this.delegator, this.validatorId);
         await this.sfc.connect(this.delegator).restakeRewards(this.validatorId);
@@ -694,7 +694,7 @@ describe('SFC', () => {
     });
 
     it('Should succeed and seal epochs', async function () {
-        let validatorsMetrics: Map<number, ValidatorMetrics> = new Map();
+        const validatorsMetrics: Map<number, ValidatorMetrics> = new Map();
         const validatorIDs = await this.sfc.lastValidatorID();
 
         for (let i = 0; i < validatorIDs; i++) {
@@ -726,7 +726,7 @@ describe('SFC', () => {
     });
 
     it('Should succeed and seal epoch on Validators', async function () {
-        let validatorsMetrics: Map<number, ValidatorMetrics> = new Map();
+        const validatorsMetrics: Map<number, ValidatorMetrics> = new Map();
         const validatorIDs = await this.sfc.lastValidatorID();
 
         for (let i = 0; i < validatorIDs; i++) {
@@ -927,7 +927,7 @@ describe('SFC', () => {
         });
 
         it('Should revert when calling sealEpoch if not NodeDriver', async function () {
-            let validatorsMetrics: Map<number, ValidatorMetrics> = new Map();
+            const validatorsMetrics: Map<number, ValidatorMetrics> = new Map();
             const validatorIDs = await this.sfc.lastValidatorID();
 
             for (let i = 0; i < validatorIDs; i++) {
@@ -1006,7 +1006,7 @@ describe('SFC', () => {
         });
 
         it('Should succeed and return slashed status', async function () {
-            expect(await this.sfc.isSlashed(1)).to.be.false;
+            expect(await this.sfc.isSlashed(1)).to.equal(false);
         });
 
         it('Should revert when delegating to an unexisting validator', async function () {
@@ -1040,7 +1040,7 @@ describe('SFC', () => {
     });
 
     describe('Rewards calculation', () => {
-        const validatorsFixture = async function (this: any) {
+        const validatorsFixture = async function (this: Context) {
             const [ validator, testValidator, firstDelegator, secondDelegator, thirdDelegator, account1, account2, account3 ] = await ethers.getSigners();
             const blockchainNode = new BlockchainNode(this.sfc);
 
@@ -1292,9 +1292,9 @@ describe('SFC', () => {
 
     // calc rewards in ether with a round down
     const calcRewardsJs = (lockDuration: number, lockedAmount: number, stakedAmount: number, totalStakedAmount: number, rawReward: number) => {
-        let rewards = {extra: 0, base: 0, unlocked: 0, penalty: 0, sum: 0};
+        const rewards = {extra: 0, base: 0, unlocked: 0, penalty: 0, sum: 0};
         // note: calculation for commission isn't accurate
-        let commissionFull = Math.floor(rawReward * 15 / 100);
+        const commissionFull = Math.floor(rawReward * 15 / 100);
         // let commissionFullLocked = Math.floor(commissionFull * lockedAmount / stakedAmount);
         // let commissionFullUnlocked = commissionFull - commissionFullLocked;
         // if (isValidator) {
@@ -1302,8 +1302,8 @@ describe('SFC', () => {
         //     rewards.base = Math.floor(commissionFullLocked * 0.3);
         //     rewards.unlocked = Math.floor(commissionFullUnlocked * 0.3);
         // }
-        let delegatorRewards = rawReward - commissionFull;
-        let accRate = Math.floor(delegatorRewards / totalStakedAmount);
+        const delegatorRewards = rawReward - commissionFull;
+        const accRate = Math.floor(delegatorRewards / totalStakedAmount);
         rewards.extra += Math.floor(accRate * lockedAmount * 0.7 * lockDuration / (86400 * 365));
         rewards.base += Math.floor(accRate * lockedAmount * 0.3);
         rewards.unlocked += Math.floor(accRate * (stakedAmount - lockedAmount) * 0.3);
@@ -1313,7 +1313,7 @@ describe('SFC', () => {
     }
 
     describe('Test fluid relocks', () => {
-        const validatorsFixture = async function (this: any) {
+        const validatorsFixture = async function (this: Context) {
             const [validator, secondValidator, firstDelegator, secondDelegator, thirdDelegator, account1, account2, account3] = await ethers.getSigners();
             const blockchainNode = new BlockchainNode(this.sfc);
 
@@ -1353,76 +1353,76 @@ describe('SFC', () => {
         // relock       T3---------------------T2------>T3
         it('Should succeed and re-lock happy path, lock, re-lock, no premature unlocks', async function () {
             await this.blockchainNode.sealEpoch(60 * 60 * 24);
-            let rewardBeforeLock = calcRewardsJs(0, 0, 10, 20, 86400);
+            const rewardBeforeLock = calcRewardsJs(0, 0, 10, 20, 86400);
 
             await this.sfc.connect(this.firstDelegator).lockStake(this.validatorId, (60 * 60 * 24 * 14), ethers.parseEther('5'));
 
             await this.blockchainNode.sealEpoch(60 * 60 * 24 * 7);
-            let rewardBeforeRelock = calcRewardsJs(86400 * 14, 5, 10, 20, 86400 * 7);
+            const rewardBeforeRelock = calcRewardsJs(86400 * 14, 5, 10, 20, 86400 * 7);
             await this.sfc.connect(this.firstDelegator).relockStake(this.validatorId, (60 * 60 * 24 * 14), ethers.parseEther('5'));
 
             await this.blockchainNode.sealEpoch(60 * 60 * 24 * 14);
-            let rewardAfterUnlock = calcRewardsJs(86400 * 14, 10, 10, 20, 86400 * 14);
+            const rewardAfterUnlock = calcRewardsJs(86400 * 14, 10, 10, 20, 86400 * 14);
 
-            let expectedReward = rewardBeforeLock.sum + rewardBeforeRelock.sum + rewardAfterUnlock.sum;
+            const expectedReward = rewardBeforeLock.sum + rewardBeforeRelock.sum + rewardAfterUnlock.sum;
             expect(await this.sfc.pendingRewards(this.firstDelegator, this.validatorId)).to.equal(expectedReward);
         });
 
         it('Should succeed and re-lock happy path, lock, re-lock no amount added, no premature unlocks', async function () {
             await this.blockchainNode.sealEpoch(60 * 60 * 24);
-            let rewardBeforeLock = calcRewardsJs(0, 0, 10, 20, 86400);
+            const rewardBeforeLock = calcRewardsJs(0, 0, 10, 20, 86400);
 
             await this.sfc.connect(this.firstDelegator).lockStake(this.validatorId, (60 * 60 * 24 * 14), ethers.parseEther('5'));
 
             await this.blockchainNode.sealEpoch(60 * 60 * 24 * 7);
-            let rewardBeforeRelock = calcRewardsJs(86400 * 14, 5, 10, 20, 86400 * 7);
+            const rewardBeforeRelock = calcRewardsJs(86400 * 14, 5, 10, 20, 86400 * 7);
             await this.sfc.connect(this.firstDelegator).relockStake(this.validatorId, (60 * 60 * 24 * 14), ethers.parseEther('0'));
 
             await this.blockchainNode.sealEpoch(60 * 60 * 24 * 14);
-            let rewardAfterUnlock = calcRewardsJs(86400 * 14, 5, 10, 20, 86400 * 14);
+            const rewardAfterUnlock = calcRewardsJs(86400 * 14, 5, 10, 20, 86400 * 14);
 
-            let expectedReward = rewardBeforeLock.sum + rewardBeforeRelock.sum + rewardAfterUnlock.sum;
+            const expectedReward = rewardBeforeLock.sum + rewardBeforeRelock.sum + rewardAfterUnlock.sum;
             expect(await this.sfc.pendingRewards(this.firstDelegator, this.validatorId)).to.equal(expectedReward);
         });
 
         it('Should succeed and re-lock happy path, lock, re-lock, unlock at T1', async function () {
             await this.blockchainNode.sealEpoch(60 * 60 * 24);
-            let rewardBeforeLock = calcRewardsJs(0, 0, 10, 20, 86400);
+            const rewardBeforeLock = calcRewardsJs(0, 0, 10, 20, 86400);
 
             await this.sfc.connect(this.firstDelegator).lockStake(this.validatorId, (60 * 60 * 24 * 14), ethers.parseEther('5'));
 
             await this.blockchainNode.sealEpoch(60 * 60 * 24 * 7);
-            let rewardBeforeRelock = calcRewardsJs(86400 * 14, 5, 10, 20, 86400 * 7);
+            const rewardBeforeRelock = calcRewardsJs(86400 * 14, 5, 10, 20, 86400 * 7);
             await this.sfc.connect(this.firstDelegator).relockStake(this.validatorId, (60 * 60 * 24 * 14), ethers.parseEther('5'));
 
             await this.blockchainNode.sealEpoch(60 * 60 * 24 * 2);
-            let rewardAfterUnlock = calcRewardsJs(86400 * 14, 10, 10, 20, 86400 * 2);
-            let expectedPenalty = rewardBeforeRelock.penalty + rewardAfterUnlock.penalty;
+            const rewardAfterUnlock = calcRewardsJs(86400 * 14, 10, 10, 20, 86400 * 2);
+            const expectedPenalty = rewardBeforeRelock.penalty + rewardAfterUnlock.penalty;
 
             expect(await this.sfc.connect(this.firstDelegator).unlockStake.staticCall(this.validatorId, ethers.parseEther('10')))
                 .to.equal(expectedPenalty);
 
-            let expectedReward = rewardBeforeLock.sum + rewardBeforeRelock.sum + rewardAfterUnlock.sum;
+            const expectedReward = rewardBeforeLock.sum + rewardBeforeRelock.sum + rewardAfterUnlock.sum;
             expect(await this.sfc.pendingRewards(this.firstDelegator, this.validatorId)).to.equal(expectedReward);
         });
 
         it('Should succeed and re-lock happy path, lock, re-lock, unlock at T2', async function () {
             await this.blockchainNode.sealEpoch(60 * 60 * 24);
-            let rewardBeforeLock = calcRewardsJs(0, 0, 10, 20, 86400);
+            const rewardBeforeLock = calcRewardsJs(0, 0, 10, 20, 86400);
 
             await this.sfc.connect(this.firstDelegator).lockStake(this.validatorId, (60 * 60 * 24 * 14), ethers.parseEther('5'));
 
             await this.blockchainNode.sealEpoch(60 * 60 * 24 * 7);
-            let rewardBeforeRelock = calcRewardsJs(86400 * 14, 5, 10, 20, 86400 * 7);
+            const rewardBeforeRelock = calcRewardsJs(86400 * 14, 5, 10, 20, 86400 * 7);
             await this.sfc.connect(this.firstDelegator).relockStake(this.validatorId, (60 * 60 * 24 * 14), ethers.parseEther('5'));
 
             await this.blockchainNode.sealEpoch(60 * 60 * 24 * 12);
-            let rewardAfterUnlock = calcRewardsJs(86400 * 14, 10, 10, 20, 86400 * 12);
-            let expectedPenalty = rewardAfterUnlock.penalty;
+            const rewardAfterUnlock = calcRewardsJs(86400 * 14, 10, 10, 20, 86400 * 12);
+            const expectedPenalty = rewardAfterUnlock.penalty;
             expect(await this.sfc.connect(this.firstDelegator).unlockStake.staticCall(this.validatorId, ethers.parseEther('10')))
                 .to.equal(expectedPenalty);
 
-            let expectedReward = rewardBeforeLock.sum + rewardBeforeRelock.sum + rewardAfterUnlock.sum;
+            const expectedReward = rewardBeforeLock.sum + rewardBeforeRelock.sum + rewardAfterUnlock.sum;
             expect(await this.sfc.pendingRewards(this.firstDelegator, this.validatorId)).to.equal(expectedReward);
         });
 
@@ -1464,18 +1464,18 @@ describe('SFC', () => {
 
         it('Should succeed and partial unlock at T1, unlock amount < original lock amount', async function () {
             await this.blockchainNode.sealEpoch(60 * 60 * 24);
-            let rewardBeforeLock = calcRewardsJs(0, 0, 10, 20, 86400);
+            const rewardBeforeLock = calcRewardsJs(0, 0, 10, 20, 86400);
 
             await this.sfc.connect(this.firstDelegator).lockStake(this.validatorId, (60 * 60 * 24 * 14), ethers.parseEther('5'));
 
             await this.blockchainNode.sealEpoch(60 * 60 * 24 * 7);
-            let rewardBeforeRelock = calcRewardsJs(86400 * 14, 5, 10, 20, 86400 * 7);
+            const rewardBeforeRelock = calcRewardsJs(86400 * 14, 5, 10, 20, 86400 * 7);
             await this.sfc.connect(this.firstDelegator).relockStake(this.validatorId, (60 * 60 * 24 * 14), ethers.parseEther('5'));
 
             await this.blockchainNode.sealEpoch(60 * 60 * 24 * 2);
-            let rewardAfterUnlock = calcRewardsJs(86400 * 14, 10, 10, 20, 86400 * 2);
-            let penaltyShareBeforeRelock = Math.floor(rewardBeforeRelock.penalty * 2 / 10);
-            let penaltyShareAfterUnlock = Math.floor(rewardAfterUnlock.penalty * 2 / 10);
+            const rewardAfterUnlock = calcRewardsJs(86400 * 14, 10, 10, 20, 86400 * 2);
+            const penaltyShareBeforeRelock = Math.floor(rewardBeforeRelock.penalty * 2 / 10);
+            const penaltyShareAfterUnlock = Math.floor(rewardAfterUnlock.penalty * 2 / 10);
             let expectedPenalty = penaltyShareBeforeRelock + penaltyShareAfterUnlock;
 
             expect(await this.sfc.connect(this.firstDelegator).unlockStake.staticCall(this.validatorId, ethers.parseEther('2')))
