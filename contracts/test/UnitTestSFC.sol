@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.9;
 
 import "../sfc/SFC.sol";
 import "../sfc/SFCI.sol";
@@ -64,11 +64,11 @@ contract UnitTestSFCLib is SFCLib, UnitTestSFCBase {
         return SFCBase.isNode(addr);
     }
 
-    function _getAvgEpochStep(uint256) internal view override returns(uint256) {
+    function _getAvgEpochStep(uint256) internal pure override returns(uint256) {
         return 1;
     }
 
-    function _getAvgUptime(uint256, uint256 duration, uint256) internal view override returns(uint256) {
+    function _getAvgUptime(uint256, uint256 duration, uint256) internal pure override returns(uint256) {
         return duration;
     }
 }
@@ -98,7 +98,6 @@ contract UnitTestNetworkInitializer {
         consts.transferOwnership(_owner);
 
         SFCUnitTestI(_sfc).initialize(sealedEpoch, totalSupply, _auth, _lib, address(consts), _owner);
-        selfdestruct(payable(address(0)));
     }
 }
 

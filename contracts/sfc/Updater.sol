@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.9;
 
 import "./NodeDriver.sol";
 import "./SFC.sol";
@@ -25,7 +25,7 @@ contract Updater {
     address public voteBook;
     address public owner;
 
-    constructor(address _sfcFrom, address _sfcLib, address _sfcConsts, address _govTo, address _govFrom, address _voteBook, address _owner) public {
+    constructor(address _sfcFrom, address _sfcLib, address _sfcConsts, address _govTo, address _govFrom, address _voteBook, address _owner) {
         sfcFrom = _sfcFrom;
         sfcLib = _sfcLib;
         sfcConsts = _sfcConsts;

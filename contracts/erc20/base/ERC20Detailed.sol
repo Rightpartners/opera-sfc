@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.9;
 
 import "../../common/Initializable.sol";
 import {ERC20} from "./ERC20.sol";

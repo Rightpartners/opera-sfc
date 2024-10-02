@@ -15,3 +15,7 @@ test:
 	docker run --rm --user $$(id -u):$$(id -g) -v $(PWD):/src -w /src node:20.17.0 bash -c \
 	    'export NPM_CONFIG_PREFIX=~; npm install --no-save; npx hardhat test'
 
+.PHONY: workspace
+workspace:
+	docker run -t -i --rm --user $$(id -u):$$(id -g) -v $(PWD):/src -w /src node:20.17.0 bash -c \
+	    'export NPM_CONFIG_PREFIX=~; npm install --no-save; bash'

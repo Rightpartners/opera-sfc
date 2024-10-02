@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.9;
 
 import "../common/Decimal.sol";
 import "./GasPriceConstants.sol";
@@ -533,7 +533,8 @@ contract SFCLib is SFCBase {
         ld.lockedStake -= amount;
         if (penalty != 0) {
             _rawUndelegate(delegator, toValidatorID, penalty, true, false, false);
-            treasuryAddress.call{value: penalty}("");
+            (bool success,) = treasuryAddress.call{value: penalty}("");
+            require(success, "Failed to send penalty");
         }
 
         emit UnlockedStake(delegator, toValidatorID, amount, penalty);

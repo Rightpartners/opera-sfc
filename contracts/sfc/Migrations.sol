@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.9;
 
 contract Migrations {
   address public owner;
   uint public last_completed_migration;
 
-  constructor() public {
-    owner = msg.sender;
+  constructor(address contractOwner) {
+    owner = contractOwner;
   }
 
   modifier restricted() {

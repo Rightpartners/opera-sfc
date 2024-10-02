@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.9;
 import "../sfc/ConstantsManager.sol";
 
 contract UnitTestConstantsManager is ConstantsManager {

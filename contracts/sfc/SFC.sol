@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.9;
 
 import "./GasPriceConstants.sol";
 import "../version/Version.sol";
@@ -263,7 +263,8 @@ contract SFC is SFCBase, Version {
         if (treasuryAddress != address(0)) {
             uint256 feeShare = ctx.epochFee * c.treasuryFeeShare() / Decimal.unit();
             _mintNativeToken(feeShare);
-            treasuryAddress.call{value: feeShare, gas: 1000000}("");
+            (bool success,) = treasuryAddress.call{value: feeShare, gas: 1000000}("");
+            require(success, "treasury transfer failed");
         }
     }
 
