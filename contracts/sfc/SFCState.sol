@@ -5,7 +5,6 @@ import "./NodeDriver.sol";
 import "../ownership/Ownable.sol";
 import "./ConstantsManager.sol";
 
-
 contract SFCState is Initializable, Ownable {
     /**
      * @dev The staking for validation
@@ -14,11 +13,9 @@ contract SFCState is Initializable, Ownable {
         uint256 status;
         uint256 deactivatedTime;
         uint256 deactivatedEpoch;
-
         uint256 receivedStake;
         uint256 createdEpoch;
         uint256 createdTime;
-
         address auth;
     }
 
@@ -47,7 +44,6 @@ contract SFCState is Initializable, Ownable {
     struct WithdrawalRequest {
         uint256 epoch;
         uint256 time;
-
         uint256 amount;
     }
 
@@ -73,9 +69,7 @@ contract SFCState is Initializable, Ownable {
         mapping(uint256 => uint256) accumulatedOriginatedTxsFee;
         mapping(uint256 => uint256) offlineTime;
         mapping(uint256 => uint256) offlineBlocks;
-
         uint256[] validatorIDs;
-
         uint256 endTime;
         uint256 epochFee;
         uint256 totalBaseRewardWeight;

@@ -1,8 +1,8 @@
-import { HardhatUserConfig } from "hardhat/config";
+import { HardhatUserConfig } from 'hardhat/config';
 import * as dotenv from 'dotenv';
-import "@nomicfoundation/hardhat-toolbox";
+import '@nomicfoundation/hardhat-toolbox';
 import 'hardhat-contract-sizer';
-import 'solidity-coverage'
+import 'solidity-coverage';
 
 dotenv.config();
 

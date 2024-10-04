@@ -8,7 +8,16 @@ import "./ConstantsManager.sol";
 
 contract NetworkInitializer {
     // Initialize NodeDriverAuth, NodeDriver and SFC in one call to allow fewer genesis transactions
-    function initializeAll(uint256 sealedEpoch, uint256 totalSupply, address payable _sfc, address _lib, address _auth, address _driver, address _evmWriter, address _owner) external {
+    function initializeAll(
+        uint256 sealedEpoch,
+        uint256 totalSupply,
+        address payable _sfc,
+        address _lib,
+        address _auth,
+        address _driver,
+        address _evmWriter,
+        address _owner
+    ) external {
         NodeDriver(_driver).initialize(_auth, _evmWriter);
         NodeDriverAuth(_auth).initialize(_sfc, _driver, _owner);
 

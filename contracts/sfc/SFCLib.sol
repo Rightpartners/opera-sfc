@@ -8,12 +8,29 @@ import "./StakeTokenizer.sol";
 import "./NodeDriver.sol";
 
 contract SFCLib is SFCBase {
-    event CreatedValidator(uint256 indexed validatorID, address indexed auth, uint256 createdEpoch, uint256 createdTime);
+    event CreatedValidator(
+        uint256 indexed validatorID,
+        address indexed auth,
+        uint256 createdEpoch,
+        uint256 createdTime
+    );
     event Delegated(address indexed delegator, uint256 indexed toValidatorID, uint256 amount);
     event Undelegated(address indexed delegator, uint256 indexed toValidatorID, uint256 indexed wrID, uint256 amount);
     event Withdrawn(address indexed delegator, uint256 indexed toValidatorID, uint256 indexed wrID, uint256 amount);
-    event ClaimedRewards(address indexed delegator, uint256 indexed toValidatorID, uint256 lockupExtraReward, uint256 lockupBaseReward, uint256 unlockedReward);
-    event RestakedRewards(address indexed delegator, uint256 indexed toValidatorID, uint256 lockupExtraReward, uint256 lockupBaseReward, uint256 unlockedReward);
+    event ClaimedRewards(
+        address indexed delegator,
+        uint256 indexed toValidatorID,
+        uint256 lockupExtraReward,
+        uint256 lockupBaseReward,
+        uint256 unlockedReward
+    );
+    event RestakedRewards(
+        address indexed delegator,
+        uint256 indexed toValidatorID,
+        uint256 lockupExtraReward,
+        uint256 lockupBaseReward,
+        uint256 unlockedReward
+    );
     event BurntFTM(uint256 amount);
     event LockedUpStake(address indexed delegator, uint256 indexed validatorID, uint256 duration, uint256 amount);
     event UnlockedStake(address indexed delegator, uint256 indexed validatorID, uint256 amount, uint256 penalty);
@@ -24,14 +41,42 @@ contract SFCLib is SFCBase {
     Constructor
     */
 
-    function setGenesisValidator(address auth, uint256 validatorID, bytes calldata pubkey, uint256 status, uint256 createdEpoch, uint256 createdTime, uint256 deactivatedEpoch, uint256 deactivatedTime) external onlyDriver {
-        _rawCreateValidator(auth, validatorID, pubkey, status, createdEpoch, createdTime, deactivatedEpoch, deactivatedTime);
+    function setGenesisValidator(
+        address auth,
+        uint256 validatorID,
+        bytes calldata pubkey,
+        uint256 status,
+        uint256 createdEpoch,
+        uint256 createdTime,
+        uint256 deactivatedEpoch,
+        uint256 deactivatedTime
+    ) external onlyDriver {
+        _rawCreateValidator(
+            auth,
+            validatorID,
+            pubkey,
+            status,
+            createdEpoch,
+            createdTime,
+            deactivatedEpoch,
+            deactivatedTime
+        );
         if (validatorID > lastValidatorID) {
             lastValidatorID = validatorID;
         }
     }
 
-    function setGenesisDelegation(address delegator, uint256 toValidatorID, uint256 stake, uint256 lockedStake, uint256 lockupFromEpoch, uint256 lockupEndTime, uint256 lockupDuration, uint256 earlyUnlockPenalty, uint256 rewards) external onlyDriver {
+    function setGenesisDelegation(
+        address delegator,
+        uint256 toValidatorID,
+        uint256 stake,
+        uint256 lockedStake,
+        uint256 lockupFromEpoch,
+        uint256 lockupEndTime,
+        uint256 lockupDuration,
+        uint256 earlyUnlockPenalty,
+        uint256 rewards
+    ) external onlyDriver {
         _rawDelegate(delegator, toValidatorID, stake, false);
         _rewardsStash[delegator][toValidatorID].unlockedReward = rewards;
         _mintNativeToken(stake);
@@ -64,7 +109,16 @@ contract SFCLib is SFCBase {
         _rawCreateValidator(auth, validatorID, pubkey, OK_STATUS, currentEpoch(), _now(), 0, 0);
     }
 
-    function _rawCreateValidator(address auth, uint256 validatorID, bytes memory pubkey, uint256 status, uint256 createdEpoch, uint256 createdTime, uint256 deactivatedEpoch, uint256 deactivatedTime) internal {
+    function _rawCreateValidator(
+        address auth,
+        uint256 validatorID,
+        bytes memory pubkey,
+        uint256 status,
+        uint256 createdEpoch,
+        uint256 createdTime,
+        uint256 deactivatedEpoch,
+        uint256 deactivatedTime
+    ) internal {
         require(getValidatorID[auth] == 0, "validator already exists");
         getValidatorID[auth] = validatorID;
         getValidator[validatorID].status = status;
@@ -90,7 +144,9 @@ contract SFCLib is SFCBase {
     }
 
     function _checkDelegatedStakeLimit(uint256 validatorID) internal view returns (bool) {
-        return getValidator[validatorID].receivedStake <= getSelfStake(validatorID) * c.maxDelegatedRatio() / Decimal.unit();
+        return
+            getValidator[validatorID].receivedStake <=
+            (getSelfStake(validatorID) * c.maxDelegatedRatio()) / Decimal.unit();
     }
 
     function delegate(uint256 toValidatorID) external payable {
@@ -125,11 +181,20 @@ contract SFCLib is SFCBase {
     }
 
     function recountVotes(address delegator, address validatorAuth, bool strict, uint256 gas) external {
-        (bool success,) = voteBookAddress.call{gas: gas}(abi.encodeWithSignature("recountVotes(address,address)", delegator, validatorAuth));
+        (bool success, ) = voteBookAddress.call{gas: gas}(
+            abi.encodeWithSignature("recountVotes(address,address)", delegator, validatorAuth)
+        );
         require(success || !strict, "gov votes recounting failed");
     }
 
-    function _rawUndelegate(address delegator, uint256 toValidatorID, uint256 amount, bool strict, bool forceful, bool checkDelegatedStake) internal {
+    function _rawUndelegate(
+        address delegator,
+        uint256 toValidatorID,
+        uint256 amount,
+        bool strict,
+        bool forceful,
+        bool checkDelegatedStake
+    ) internal {
         getStake[delegator][toValidatorID] -= amount;
         getValidator[toValidatorID].receivedStake = getValidator[toValidatorID].receivedStake - amount;
         totalStake = totalStake - amount;
@@ -146,7 +211,10 @@ contract SFCLib is SFCBase {
                     _setValidatorDeactivated(toValidatorID, WITHDRAWN_BIT);
                 }
             }
-            require(!checkDelegatedStake || _checkDelegatedStakeLimit(toValidatorID), "validator's delegations limit is exceeded");
+            require(
+                !checkDelegatedStake || _checkDelegatedStakeLimit(toValidatorID),
+                "validator's delegations limit is exceeded"
+            );
         } else {
             _setValidatorDeactivated(toValidatorID, WITHDRAWN_BIT);
         }
@@ -201,22 +269,26 @@ contract SFCLib is SFCBase {
         emit Undelegated(delegator, toValidatorID, 0xffffffffff, amount);
 
         // It's important that we transfer after erasing (protection against Re-Entrancy)
-        (bool sent,) = msg.sender.call{value: amount}("");
+        (bool sent, ) = msg.sender.call{value: amount}("");
         require(sent, "Failed to send FTM");
 
         emit Withdrawn(delegator, toValidatorID, 0xffffffffff, amount);
     }
 
-    function isSlashed(uint256 validatorID) view public returns (bool) {
+    function isSlashed(uint256 validatorID) public view returns (bool) {
         return getValidator[validatorID].status & CHEATER_MASK != 0;
     }
 
-    function getSlashingPenalty(uint256 amount, bool isCheater, uint256 refundRatio) internal pure returns (uint256 penalty) {
+    function getSlashingPenalty(
+        uint256 amount,
+        bool isCheater,
+        uint256 refundRatio
+    ) internal pure returns (uint256 penalty) {
         if (!isCheater || refundRatio >= Decimal.unit()) {
             return 0;
         }
         // round penalty upwards (ceiling) to prevent dust amount attacks
-        penalty = amount * (Decimal.unit() - refundRatio) / Decimal.unit() + 1;
+        penalty = (amount * (Decimal.unit() - refundRatio)) / Decimal.unit() + 1;
         if (penalty > amount) {
             return amount;
         }
@@ -230,7 +302,10 @@ contract SFCLib is SFCBase {
 
         uint256 requestTime = request.time;
         uint256 requestEpoch = request.epoch;
-        if (getValidator[toValidatorID].deactivatedTime != 0 && getValidator[toValidatorID].deactivatedTime < requestTime) {
+        if (
+            getValidator[toValidatorID].deactivatedTime != 0 &&
+            getValidator[toValidatorID].deactivatedTime < requestTime
+        ) {
             requestTime = getValidator[toValidatorID].deactivatedTime;
             requestEpoch = getValidator[toValidatorID].deactivatedEpoch;
         }
@@ -246,7 +321,7 @@ contract SFCLib is SFCBase {
         totalSlashedStake += penalty;
         require(amount > penalty, "stake is fully slashed");
         // It's important that we transfer after erasing (protection against Re-Entrancy)
-        (bool sent,) = receiver.call{value: amount - penalty}("");
+        (bool sent, ) = receiver.call{value: amount - penalty}("");
         require(sent, "Failed to send FTM");
         _burnFTM(penalty);
 
@@ -332,13 +407,18 @@ contract SFCLib is SFCBase {
         return sumRewards(plReward, puReward, wuReward);
     }
 
-    function _newRewardsOf(uint256 stakeAmount, uint256 toValidatorID, uint256 fromEpoch, uint256 toEpoch) internal view returns (uint256) {
+    function _newRewardsOf(
+        uint256 stakeAmount,
+        uint256 toValidatorID,
+        uint256 fromEpoch,
+        uint256 toEpoch
+    ) internal view returns (uint256) {
         if (fromEpoch >= toEpoch) {
             return 0;
         }
         uint256 stashedRate = getEpochSnapshot[fromEpoch].accumulatedRewardPerToken[toValidatorID];
         uint256 currentRate = getEpochSnapshot[toEpoch].accumulatedRewardPerToken[toValidatorID];
-        return (currentRate - stashedRate) * stakeAmount / Decimal.unit();
+        return ((currentRate - stashedRate) * stakeAmount) / Decimal.unit();
     }
 
     function _pendingRewards(address delegator, uint256 toValidatorID) internal view returns (Rewards memory) {
@@ -359,13 +439,19 @@ contract SFCLib is SFCBase {
         Rewards memory nonStashedReward = _newRewards(delegator, toValidatorID);
         stashedRewardsUntilEpoch[delegator][toValidatorID] = _highestPayableEpoch(toValidatorID);
         _rewardsStash[delegator][toValidatorID] = sumRewards(_rewardsStash[delegator][toValidatorID], nonStashedReward);
-        getStashedLockupRewards[delegator][toValidatorID] = sumRewards(getStashedLockupRewards[delegator][toValidatorID], nonStashedReward);
+        getStashedLockupRewards[delegator][toValidatorID] = sumRewards(
+            getStashedLockupRewards[delegator][toValidatorID],
+            nonStashedReward
+        );
         if (!isLockedUp(delegator, toValidatorID)) {
             delete getLockupInfo[delegator][toValidatorID];
             delete getStashedLockupRewards[delegator][toValidatorID];
         }
         _truncateLegacyPenalty(delegator, toValidatorID);
-        return nonStashedReward.lockupBaseReward != 0 || nonStashedReward.lockupExtraReward != 0 || nonStashedReward.unlockedReward != 0;
+        return
+            nonStashedReward.lockupBaseReward != 0 ||
+            nonStashedReward.lockupExtraReward != 0 ||
+            nonStashedReward.unlockedReward != 0;
     }
 
     function _claimRewards(address delegator, uint256 toValidatorID) internal returns (Rewards memory rewards) {
@@ -384,10 +470,18 @@ contract SFCLib is SFCBase {
         address delegator = msg.sender;
         Rewards memory rewards = _claimRewards(delegator, toValidatorID);
         // It's important that we transfer after erasing (protection against Re-Entrancy)
-        (bool sent,) = _receiverOf(delegator).call{value: rewards.lockupExtraReward + rewards.lockupBaseReward + rewards.unlockedReward}("");
+        (bool sent, ) = _receiverOf(delegator).call{
+            value: rewards.lockupExtraReward + rewards.lockupBaseReward + rewards.unlockedReward
+        }("");
         require(sent, "Failed to send FTM");
 
-        emit ClaimedRewards(delegator, toValidatorID, rewards.lockupExtraReward, rewards.lockupBaseReward, rewards.unlockedReward);
+        emit ClaimedRewards(
+            delegator,
+            toValidatorID,
+            rewards.lockupExtraReward,
+            rewards.lockupBaseReward,
+            rewards.unlockedReward
+        );
     }
 
     function restakeRewards(uint256 toValidatorID) public {
@@ -397,11 +491,17 @@ contract SFCLib is SFCBase {
         uint256 lockupReward = rewards.lockupExtraReward + rewards.lockupBaseReward;
         _delegate(delegator, toValidatorID, lockupReward + rewards.unlockedReward);
         getLockupInfo[delegator][toValidatorID].lockedStake += lockupReward;
-        emit RestakedRewards(delegator, toValidatorID, rewards.lockupExtraReward, rewards.lockupBaseReward, rewards.unlockedReward);
+        emit RestakedRewards(
+            delegator,
+            toValidatorID,
+            rewards.lockupExtraReward,
+            rewards.lockupBaseReward,
+            rewards.unlockedReward
+        );
     }
 
     // burnFTM allows SFC to burn an arbitrary amount of FTM tokens
-    function burnFTM(uint256 amount) onlyOwner external {
+    function burnFTM(uint256 amount) external onlyOwner {
         _burnFTM(amount);
     }
 
@@ -412,12 +512,14 @@ contract SFCLib is SFCBase {
         }
     }
 
-    function epochEndTime(uint256 epoch) view internal returns (uint256) {
+    function epochEndTime(uint256 epoch) internal view returns (uint256) {
         return getEpochSnapshot[epoch].endTime;
     }
 
     function _isLockedUpAtEpoch(address delegator, uint256 toValidatorID, uint256 epoch) internal view returns (bool) {
-        return getLockupInfo[delegator][toValidatorID].fromEpoch <= epoch && epochEndTime(epoch) <= getLockupInfo[delegator][toValidatorID].endTime;
+        return
+            getLockupInfo[delegator][toValidatorID].fromEpoch <= epoch &&
+            epochEndTime(epoch) <= getLockupInfo[delegator][toValidatorID].endTime;
     }
 
     function _checkAllowedToWithdraw(address delegator, uint256 toValidatorID) internal view returns (bool) {
@@ -434,16 +536,28 @@ contract SFCLib is SFCBase {
         return getStake[delegator][toValidatorID] - getLockupInfo[delegator][toValidatorID].lockedStake;
     }
 
-    function _lockStake(address delegator, uint256 toValidatorID, uint256 lockupDuration, uint256 amount, bool relock) internal {
+    function _lockStake(
+        address delegator,
+        uint256 toValidatorID,
+        uint256 lockupDuration,
+        uint256 amount,
+        bool relock
+    ) internal {
         require(!_redirected(delegator), "redirected");
         require(amount <= getUnlockedStake(delegator, toValidatorID), "not enough stake");
         require(getValidator[toValidatorID].status == OK_STATUS, "validator isn't active");
 
-        require(lockupDuration >= c.minLockupDuration() && lockupDuration <= c.maxLockupDuration(), "incorrect duration");
+        require(
+            lockupDuration >= c.minLockupDuration() && lockupDuration <= c.maxLockupDuration(),
+            "incorrect duration"
+        );
         uint256 endTime = _now() + lockupDuration;
         address validatorAddr = getValidator[toValidatorID].auth;
         if (delegator != validatorAddr) {
-            require(getLockupInfo[validatorAddr][toValidatorID].endTime + 30 * 24 * 60 * 60 >= endTime, "validator's lockup will end too early");
+            require(
+                getLockupInfo[validatorAddr][toValidatorID].endTime + 30 * 24 * 60 * 60 >= endTime,
+                "validator's lockup will end too early"
+            );
         }
 
         _stashRewards(delegator, toValidatorID);
@@ -458,7 +572,10 @@ contract SFCLib is SFCBase {
             if (penalty != 0) {
                 penalties.push(Penalty(penalty, ld.endTime));
                 require(penalties.length <= 30, "too many ongoing relocks");
-                require(amount > ld.lockedStake / 100 || penalties.length <= 3 || endTime >= ld.endTime + 14 * 24 * 60 * 60, "too frequent relocks");
+                require(
+                    amount > ld.lockedStake / 100 || penalties.length <= 3 || endTime >= ld.endTime + 14 * 24 * 60 * 60,
+                    "too frequent relocks"
+                );
             }
         }
 
@@ -486,29 +603,44 @@ contract SFCLib is SFCBase {
         _lockStake(delegator, toValidatorID, lockupDuration, amount, true);
     }
 
-    function _popNonStashedUnlockPenalty(address delegator, uint256 toValidatorID, uint256 unlockAmount, uint256 totalAmount) internal returns (uint256) {
+    function _popNonStashedUnlockPenalty(
+        address delegator,
+        uint256 toValidatorID,
+        uint256 unlockAmount,
+        uint256 totalAmount
+    ) internal returns (uint256) {
         Rewards storage r = getStashedLockupRewards[delegator][toValidatorID];
-        uint256 lockupExtraRewardShare = r.lockupExtraReward * unlockAmount / totalAmount;
-        uint256 lockupBaseRewardShare = r.lockupBaseReward * unlockAmount / totalAmount;
+        uint256 lockupExtraRewardShare = (r.lockupExtraReward * unlockAmount) / totalAmount;
+        uint256 lockupBaseRewardShare = (r.lockupBaseReward * unlockAmount) / totalAmount;
         uint256 penalty = lockupExtraRewardShare + lockupBaseRewardShare / 2;
         r.lockupExtraReward = r.lockupExtraReward - lockupExtraRewardShare;
         r.lockupBaseReward = r.lockupBaseReward - lockupBaseRewardShare;
         return penalty;
     }
 
-    function _popStashedUnlockPenalty(address delegator, uint256 toValidatorID, uint256 unlockAmount, uint256 totalAmount) internal returns (uint256) {
+    function _popStashedUnlockPenalty(
+        address delegator,
+        uint256 toValidatorID,
+        uint256 unlockAmount,
+        uint256 totalAmount
+    ) internal returns (uint256) {
         _delStalePenalties(delegator, toValidatorID);
         Penalty[] storage penalties = getStashedPenalties[delegator][toValidatorID];
         uint256 total = 0;
         for (uint256 i = 0; i < penalties.length; i++) {
-            uint256 penalty = penalties[i].amount * unlockAmount / totalAmount;
+            uint256 penalty = (penalties[i].amount * unlockAmount) / totalAmount;
             penalties[i].amount = penalties[i].amount - penalty;
             total = total + penalty;
         }
         return total;
     }
 
-    function _popWholeUnlockPenalty(address delegator, uint256 toValidatorID, uint256 unlockAmount, uint256 totalAmount) internal returns (uint256) {
+    function _popWholeUnlockPenalty(
+        address delegator,
+        uint256 toValidatorID,
+        uint256 unlockAmount,
+        uint256 totalAmount
+    ) internal returns (uint256) {
         uint256 nonStashed = _popNonStashedUnlockPenalty(delegator, toValidatorID, unlockAmount, totalAmount);
         uint256 stashed = _popStashedUnlockPenalty(delegator, toValidatorID, unlockAmount, totalAmount);
         return nonStashed + stashed;
@@ -533,7 +665,7 @@ contract SFCLib is SFCBase {
         ld.lockedStake -= amount;
         if (penalty != 0) {
             _rawUndelegate(delegator, toValidatorID, penalty, true, false, false);
-            (bool success,) = treasuryAddress.call{value: penalty}("");
+            (bool success, ) = treasuryAddress.call{value: penalty}("");
             require(success, "Failed to send penalty");
         }
 
@@ -541,7 +673,7 @@ contract SFCLib is SFCBase {
         return penalty;
     }
 
-    function updateSlashingRefundRatio(uint256 validatorID, uint256 refundRatio) onlyOwner external {
+    function updateSlashingRefundRatio(uint256 validatorID, uint256 refundRatio) external onlyOwner {
         require(isSlashed(validatorID), "validator isn't slashed");
         require(refundRatio <= Decimal.unit(), "must be less than or equal to 1.0");
         slashingRefundRatio[validatorID] = refundRatio;
@@ -550,7 +682,7 @@ contract SFCLib is SFCBase {
 
     function _delStalePenalties(address delegator, uint256 toValidatorID) public {
         Penalty[] storage penalties = getStashedPenalties[delegator][toValidatorID];
-        for (uint256 i = 0; i < penalties.length;) {
+        for (uint256 i = 0; i < penalties.length; ) {
             if (penalties[i].end < _now() || penalties[i].amount == 0) {
                 penalties[i] = penalties[penalties.length - 1];
                 penalties.pop();
@@ -560,52 +692,52 @@ contract SFCLib is SFCBase {
         }
     }
 
-    function redirectedAccs() private pure returns(address[] memory, address[] memory) {
+    function redirectedAccs() private pure returns (address[] memory, address[] memory) {
         // the addresses below were reported as stolen by their owners via the signatures below:
-//        I redirect SFC withdrawals to account 0x80f93310709624636852d0111fd6c4A6e02ED0aA due to a potential attacker gaining access to my account.
-//        {
-//        "address": "0x93419fcb5d9dc7989439f0512d4f737421ed48d9",
-//        "msg": "0x4920726564697265637420534643207769746864726177616c7320746f206163636f756e74203078383066393333313037303936323436333638353264303131316664366334413665303245443061412064756520746f206120706f74656e7469616c2061747461636b6572206761696e696e672061636365737320746f206d79206163636f756e742e",
-//        "sig": "1c4f3168e01d499a657f0d1cd453b26e5f69aaf14372983ff62e54a1d53959e55edb0746f4aea0959899b06bf31dc6a0160f6ac428cd75d4657184ab2337e46e1c",
-//        "version": "3",
-//        "signer": "MEW"
-//        }
-//        --
-//        I redirect SFC withdrawals to account 0x91B20102Dfd2ff1b00D0915266584009d0b1Ae39 due to a potential attacker gaining access to my account.
-//        {
-//        "address": "0xfbcae1b28ca5039dafec4f10a89e022bc8118394",
-//        "msg": "0x4920726564697265637420534643207769746864726177616c7320746f206163636f756e74203078393142323031303244666432666631623030443039313532363635383430303964306231416533392064756520746f206120706f74656e7469616c2061747461636b6572206761696e696e672061636365737320746f206d79206163636f756e742e",
-//        "sig": "c98431cc1b6f26b8248ca83f860721f31ec79097831e69c28d352512182bbfa93911564ed46ba11547b544c4d65380781a4f3cc6afe9f075d43a24e0947853151c",
-//        "version": "3",
-//        "signer": "MEW"
-//        }
-//        --
-//        I redirect SFC withdrawals to account 0xCA3C54c11172A7263300a801E9937780b5143c08 due to a potential attacker gaining access to my account.
-//        {
-//        "address": "0x15c2ec517905fb3282f26f3ac3e12889755a2ed7",
-//        "msg": "0x4920726564697265637420534643207769746864726177616c7320746f206163636f756e74203078434133433534633131313732413732363333303061383031453939333737383062353134336330382064756520746f206120706f74656e7469616c2061747461636b6572206761696e696e672061636365737320746f206d79206163636f756e742e",
-//        "sig": "8d933ea6b1dfaa70c92d7dd8f68e9c821934eabd9c454dc792a90c9c58d0c4ec5c60d7737e7b8ed38cfdfe3bd7fce9a2c38133b9a98d6699088d79edb09ec3c21b",
-//        "version": "3",
-//        "signer": "MEW"
-//        }
-// --
-// I redirect SFC withdrawals to account 0x5A1CAd027EACE4C052f5DEE0f42Da6c62E39b779 due to a potential attacker gaining access to my account.
-// {
-//  "address": "0xbdAaEC5f9317cC63D26FD7d79aD17372Ccd7d763",
-//  "msg": "0x4920726564697265637420534643207769746864726177616c7320746f206163636f756e74203078354131434164303237454143453443303532663544454530663432446136633632453339623737392064756520746f206120706f74656e7469616c2061747461636b6572206761696e696e672061636365737320746f206d79206163636f756e742e",
-//  "sig": "0e9b3ce37f665ab03bdfd3095671249e1b2842b1dd314fd4281bbed527ea69014ca510227e57f973b35ef175c1214fb1a842be70ff5a9290cb260799c544eed900",
-//  "version": "3",
-//  "signer": "MEW"
-// }
-// --
-// I redirect SFC withdrawals to account 0x4A15B527475977D9B0CB3fcfE825d6Aa7428fAFC due to a potential attacker gaining access to my account.
-// {
-//  "address": "0xf72148504819A1D1B038694B02d299F65BfA312d",
-//  "msg": "0x4920726564697265637420534643207769746864726177616c7320746f206163636f756e74203078344131354235323734373539373744394230434233666366453832356436416137343238664146432064756520746f206120706f74656e7469616c2061747461636b6572206761696e696e672061636365737320746f206d79206163636f756e742e",
-//  "sig": "cf6386edbbee504c07ae95cb7c5ef06e7e0f57b34d51ab4e4047b5cb326af9bc236f544a3ced994cd20601047966e683aaaf329772fbb6bf37f0bd12200d1e6100",
-//  "version": "3",
-//  "signer": "MEW"
-// }
+        //        I redirect SFC withdrawals to account 0x80f93310709624636852d0111fd6c4A6e02ED0aA due to a potential attacker gaining access to my account.
+        //        {
+        //        "address": "0x93419fcb5d9dc7989439f0512d4f737421ed48d9",
+        //        "msg": "0x4920726564697265637420534643207769746864726177616c7320746f206163636f756e74203078383066393333313037303936323436333638353264303131316664366334413665303245443061412064756520746f206120706f74656e7469616c2061747461636b6572206761696e696e672061636365737320746f206d79206163636f756e742e",
+        //        "sig": "1c4f3168e01d499a657f0d1cd453b26e5f69aaf14372983ff62e54a1d53959e55edb0746f4aea0959899b06bf31dc6a0160f6ac428cd75d4657184ab2337e46e1c",
+        //        "version": "3",
+        //        "signer": "MEW"
+        //        }
+        //        --
+        //        I redirect SFC withdrawals to account 0x91B20102Dfd2ff1b00D0915266584009d0b1Ae39 due to a potential attacker gaining access to my account.
+        //        {
+        //        "address": "0xfbcae1b28ca5039dafec4f10a89e022bc8118394",
+        //        "msg": "0x4920726564697265637420534643207769746864726177616c7320746f206163636f756e74203078393142323031303244666432666631623030443039313532363635383430303964306231416533392064756520746f206120706f74656e7469616c2061747461636b6572206761696e696e672061636365737320746f206d79206163636f756e742e",
+        //        "sig": "c98431cc1b6f26b8248ca83f860721f31ec79097831e69c28d352512182bbfa93911564ed46ba11547b544c4d65380781a4f3cc6afe9f075d43a24e0947853151c",
+        //        "version": "3",
+        //        "signer": "MEW"
+        //        }
+        //        --
+        //        I redirect SFC withdrawals to account 0xCA3C54c11172A7263300a801E9937780b5143c08 due to a potential attacker gaining access to my account.
+        //        {
+        //        "address": "0x15c2ec517905fb3282f26f3ac3e12889755a2ed7",
+        //        "msg": "0x4920726564697265637420534643207769746864726177616c7320746f206163636f756e74203078434133433534633131313732413732363333303061383031453939333737383062353134336330382064756520746f206120706f74656e7469616c2061747461636b6572206761696e696e672061636365737320746f206d79206163636f756e742e",
+        //        "sig": "8d933ea6b1dfaa70c92d7dd8f68e9c821934eabd9c454dc792a90c9c58d0c4ec5c60d7737e7b8ed38cfdfe3bd7fce9a2c38133b9a98d6699088d79edb09ec3c21b",
+        //        "version": "3",
+        //        "signer": "MEW"
+        //        }
+        // --
+        // I redirect SFC withdrawals to account 0x5A1CAd027EACE4C052f5DEE0f42Da6c62E39b779 due to a potential attacker gaining access to my account.
+        // {
+        //  "address": "0xbdAaEC5f9317cC63D26FD7d79aD17372Ccd7d763",
+        //  "msg": "0x4920726564697265637420534643207769746864726177616c7320746f206163636f756e74203078354131434164303237454143453443303532663544454530663432446136633632453339623737392064756520746f206120706f74656e7469616c2061747461636b6572206761696e696e672061636365737320746f206d79206163636f756e742e",
+        //  "sig": "0e9b3ce37f665ab03bdfd3095671249e1b2842b1dd314fd4281bbed527ea69014ca510227e57f973b35ef175c1214fb1a842be70ff5a9290cb260799c544eed900",
+        //  "version": "3",
+        //  "signer": "MEW"
+        // }
+        // --
+        // I redirect SFC withdrawals to account 0x4A15B527475977D9B0CB3fcfE825d6Aa7428fAFC due to a potential attacker gaining access to my account.
+        // {
+        //  "address": "0xf72148504819A1D1B038694B02d299F65BfA312d",
+        //  "msg": "0x4920726564697265637420534643207769746864726177616c7320746f206163636f756e74203078344131354235323734373539373744394230434233666366453832356436416137343238664146432064756520746f206120706f74656e7469616c2061747461636b6572206761696e696e672061636365737320746f206d79206163636f756e742e",
+        //  "sig": "cf6386edbbee504c07ae95cb7c5ef06e7e0f57b34d51ab4e4047b5cb326af9bc236f544a3ced994cd20601047966e683aaaf329772fbb6bf37f0bd12200d1e6100",
+        //  "version": "3",
+        //  "signer": "MEW"
+        // }
         // The contract does not lock these positions; instead, it restricts withdrawals exclusively to the account designated in the signature.
         // This measure prevents an attacker from transferring FTM following a withdrawal.
 
@@ -625,8 +757,8 @@ contract SFCLib is SFCBase {
         return (froms, tos);
     }
 
-    function _redirected(address addr) internal view returns(bool) {
-        (address[] memory froms,) = redirectedAccs();
+    function _redirected(address addr) internal view returns (bool) {
+        (address[] memory froms, ) = redirectedAccs();
         for (uint256 i = 0; i < froms.length; i++) {
             if (addr == froms[i]) {
                 return true;
@@ -635,7 +767,7 @@ contract SFCLib is SFCBase {
         return getRedirection[addr] != address(0);
     }
 
-    function _redirectedTo(address addr) internal view returns(address) {
+    function _redirectedTo(address addr) internal view returns (address) {
         (address[] memory froms, address[] memory tos) = redirectedAccs();
         for (uint256 i = 0; i < froms.length; i++) {
             if (addr == froms[i]) {
@@ -645,7 +777,7 @@ contract SFCLib is SFCBase {
         return getRedirection[addr];
     }
 
-    function _receiverOf(address addr) internal view returns(address payable) {
+    function _receiverOf(address addr) internal view returns (address payable) {
         address to = _redirectedTo(addr);
         if (to == address(0)) {
             return payable(address(uint160(addr)));
@@ -655,7 +787,7 @@ contract SFCLib is SFCBase {
 
     // code below can be erased after 1 year since deployment of multipenalties
 
-    function _getAvgEpochStep(uint256 duration) internal view virtual returns(uint256) {
+    function _getAvgEpochStep(uint256 duration) internal view virtual returns (uint256) {
         // estimate number of epochs such that we would make approximately 15 iterations
         uint256 tryEpochs = currentSealedEpoch / 5;
         if (tryEpochs > 10000) {
@@ -669,7 +801,7 @@ contract SFCLib is SFCBase {
         return duration / (secondsPerEpoch * 15 + 1);
     }
 
-    function _getAvgReceivedStake(uint256 validatorID, uint256 duration, uint256 step) internal view returns(uint256) {
+    function _getAvgReceivedStake(uint256 validatorID, uint256 duration, uint256 step) internal view returns (uint256) {
         uint256 receivedStakeSum = getValidator[validatorID].receivedStake;
         uint256 samples = 1;
 
@@ -689,7 +821,11 @@ contract SFCLib is SFCBase {
         return receivedStakeSum / samples;
     }
 
-    function _getAvgUptime(uint256 validatorID, uint256 duration, uint256 step) internal view virtual returns(uint256) {
+    function _getAvgUptime(
+        uint256 validatorID,
+        uint256 duration,
+        uint256 step
+    ) internal view virtual returns (uint256) {
         uint256 until = _now() - duration;
         uint256 oldUptimeCounter = 0;
         uint256 newUptimeCounter = 0;
@@ -712,7 +848,7 @@ contract SFCLib is SFCBase {
             }
         }
         uint256 uptime = newUptimeCounter - oldUptimeCounter;
-        if (uptime > duration*4/5) {
+        if (uptime > (duration * 4) / 5) {
             return duration;
         }
         return uptime;
@@ -731,21 +867,23 @@ contract SFCLib is SFCBase {
         if (step == 0) {
             return;
         }
-        uint256 RPS = _getAvgUptime(toValidatorID, duration, step) * 2092846271 / duration; // corresponds to 6.6% APR
+        uint256 RPS = (_getAvgUptime(toValidatorID, duration, step) * 2092846271) / duration; // corresponds to 6.6% APR
         uint256 selfStake = getStake[delegator][toValidatorID];
 
-        uint256 avgFullReward = selfStake * RPS * duration / 1e18 * (Decimal.unit() - c.validatorCommission()) / Decimal.unit(); // reward for self-stake
-        if (getValidator[toValidatorID].auth == delegator) { // reward for received portion of stake
-            uint256 receivedStakeAvg = _getAvgReceivedStake(toValidatorID, duration, step) * 11 / 10;
-            avgFullReward += receivedStakeAvg * RPS * duration / 1e18 * c.validatorCommission() / Decimal.unit();
+        uint256 avgFullReward = (((selfStake * RPS * duration) / 1e18) * (Decimal.unit() - c.validatorCommission())) /
+            Decimal.unit(); // reward for self-stake
+        if (getValidator[toValidatorID].auth == delegator) {
+            // reward for received portion of stake
+            uint256 receivedStakeAvg = (_getAvgReceivedStake(toValidatorID, duration, step) * 11) / 10;
+            avgFullReward += (((receivedStakeAvg * RPS * duration) / 1e18) * c.validatorCommission()) / Decimal.unit();
         }
-        avgFullReward = avgFullReward * lockedStake / selfStake;
+        avgFullReward = (avgFullReward * lockedStake) / selfStake;
         Rewards memory avgReward = _scaleLockupReward(avgFullReward, duration);
         uint256 maxReasonablePenalty = avgReward.lockupBaseReward / 2 + avgReward.lockupExtraReward;
         maxReasonablePenalty = maxReasonablePenalty;
         if (storedPenalty > maxReasonablePenalty) {
-            r.lockupExtraReward = r.lockupExtraReward * maxReasonablePenalty / storedPenalty;
-            r.lockupBaseReward = r.lockupBaseReward * maxReasonablePenalty / storedPenalty;
+            r.lockupExtraReward = (r.lockupExtraReward * maxReasonablePenalty) / storedPenalty;
+            r.lockupBaseReward = (r.lockupBaseReward * maxReasonablePenalty) / storedPenalty;
         }
     }
 }

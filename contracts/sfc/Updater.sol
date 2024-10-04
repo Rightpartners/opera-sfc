@@ -25,7 +25,15 @@ contract Updater {
     address public voteBook;
     address public owner;
 
-    constructor(address _sfcFrom, address _sfcLib, address _sfcConsts, address _govTo, address _govFrom, address _voteBook, address _owner) {
+    constructor(
+        address _sfcFrom,
+        address _sfcLib,
+        address _sfcConsts,
+        address _govTo,
+        address _govFrom,
+        address _voteBook,
+        address _owner
+    ) {
         sfcFrom = _sfcFrom;
         sfcLib = _sfcLib;
         sfcConsts = _sfcConsts;
@@ -34,7 +42,16 @@ contract Updater {
         voteBook = _voteBook;
         owner = _owner;
         address sfcTo = address(0xFC00FACE00000000000000000000000000000000);
-        require(sfcFrom != address(0) && sfcLib != address(0) && sfcConsts != address(0) && govTo != address(0) && govFrom != address(0) && voteBook != address(0) && owner != address(0), "0 address");
+        require(
+            sfcFrom != address(0) &&
+                sfcLib != address(0) &&
+                sfcConsts != address(0) &&
+                govTo != address(0) &&
+                govFrom != address(0) &&
+                voteBook != address(0) &&
+                owner != address(0),
+            "0 address"
+        );
         require(Version(sfcTo).version() == "303", "SFC already updated");
         require(Version(sfcFrom).version() == "304", "wrong SFC version");
         require(GovVersion(govTo).version() == "0001", "gov already updated");
