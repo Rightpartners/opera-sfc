@@ -1,6 +1,7 @@
 import { HardhatUserConfig } from 'hardhat/config';
 import * as dotenv from 'dotenv';
-import '@nomicfoundation/hardhat-toolbox';
+import '@nomicfoundation/hardhat-chai-matchers';
+import '@nomicfoundation/hardhat-ethers';
 import 'hardhat-contract-sizer';
 import 'hardhat-gas-reporter';
 import 'solidity-coverage';
