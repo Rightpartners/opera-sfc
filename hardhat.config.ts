@@ -2,7 +2,7 @@ import { HardhatUserConfig } from 'hardhat/config';
 import * as dotenv from 'dotenv';
 import '@nomicfoundation/hardhat-toolbox';
 import 'hardhat-contract-sizer';
-import "hardhat-gas-reporter";
+import 'hardhat-gas-reporter';
 import 'solidity-coverage';
 
 dotenv.config();
@@ -20,7 +20,7 @@ const config: HardhatUserConfig = {
   },
   gasReporter: {
     currency: 'USD',
-    enabled: !!(process.env.REPORT_GAS),
+    enabled: !!process.env.REPORT_GAS,
     gasPrice: 50,
   },
   contractSizer: {
