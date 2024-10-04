@@ -16,7 +16,7 @@
     "lint:js-fix": "prettier --log-level warn '**/*.{js,ts}' --write && eslint 'test/*.ts' --fix",
     "lint:sol": "prettier --log-level warn 'contracts/**/*.sol' --check && solhint 'contracts/**/*.sol'",
     "lint:sol-fix": "prettier --log-level warn 'contracts/**/*.sol' --write",
-    "gas-report": "env ENABLE_GAS_REPORT=true npm run test",
+    "gas-report": "env REPORT_GAS=true npm run test",
     "test": "hardhat test"
   },
   "devDependencies": {
@@ -34,6 +34,7 @@
     "eslint-config-prettier": "^9.1.0",
     "hardhat": "^2.22.12",
     "hardhat-contract-sizer": "^2.10.0",
+    "hardhat-gas-reporter": "^2.2.1",
     "prettier": "^3.3.3",
     "prettier-plugin-solidity": "^1.4.1",
     "solhint": "^5.0.3",
